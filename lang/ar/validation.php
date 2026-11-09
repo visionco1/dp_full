@@ -1,0 +1,31 @@
+<?php
+
+return [
+    'required' => 'حقل :attribute مطلوب.',
+    'required_if' => 'حقل :attribute مطلوب.',
+    'required_without' => 'حقل :attribute مطلوب.',
+    'string' => 'حقل :attribute يجب أن يكون نصاً.',
+    'integer' => 'حقل :attribute يجب أن يكون رقماً صحيحاً.',
+    'numeric' => 'حقل :attribute يجب أن يكون رقماً.',
+    'boolean' => 'حقل :attribute يجب أن يكون صح أو خطأ.',
+    'array' => 'حقل :attribute يجب أن يكون قائمة.',
+    'email' => 'صيغة البريد الإلكتروني غير صحيحة.',
+    'unique' => ':attribute مستخدم من قبل.',
+    'exists' => ':attribute غير موجود.',
+    'in' => 'قيمة :attribute غير صالحة.',
+    'accepted' => 'يجب الموافقة على :attribute.',
+    'confirmed' => 'تأكيد :attribute غير مطابق.',
+    'file' => 'يجب أن يكون :attribute ملفاً.',
+    'mimes' => 'نوع ملف :attribute غير مدعوم (:values).',
+    'regex' => 'صيغة :attribute غير صحيحة.',
+    'digits' => 'يجب أن يتكوّن :attribute من :digits أرقام.',
+    'max' => ['string' => 'يجب ألا يزيد :attribute عن :max حرفاً.', 'numeric' => 'يجب ألا يزيد :attribute عن :max.', 'file' => 'يجب ألا يزيد حجم :attribute عن :max كيلوبايت.', 'array' => 'يجب ألا يزيد :attribute عن :max عناصر.'],
+    'min' => ['string' => 'يجب ألا يقل :attribute عن :min أحرف.', 'numeric' => 'يجب ألا يقل :attribute عن :min.', 'file' => 'يجب ألا يقل حجم :attribute عن :min كيلوبايت.', 'array' => 'يجب أن يحتوي :attribute على :min عنصر على الأقل.'],
+    'between' => ['numeric' => 'يجب أن يكون :attribute بين :min و :max.'],
+    'attributes' => [
+        'phone' => 'رقم الجوال', 'code' => 'رمز التحقق', 'name' => 'الاسم', 'city' => 'المدينة', 'email' => 'البريد الإلكتروني',
+        'business_name' => 'اسم المنشأة', 'cr_number' => 'رقم السجل التجاري', 'vat_number' => 'الرقم الضريبي', 'terms' => 'الشروط والأحكام',
+        'qty' => 'الكمية', 'password' => 'كلمة المرور', 'line' => 'العنوان', 'label' => 'التسمية', 'payment_method' => 'طريقة الدفع',
+        'receipt' => 'إيصال التحويل', 'year' => 'السنة', 'reason' => 'السبب', 'number' => 'رقم الطلب', 'price' => 'السعر', 'sku' => 'رقم القطعة',
+    ],
+];

@@ -1,0 +1,1604 @@
+{
+  "info": {
+    "name": "دفع المحركات — Mobile API v1",
+    "description": "Mobile API — البادئة /api/v1\n\n**التشغيل السريع:**\n1. `Auth → Request OTP` (رقم العميل التجريبي 0512345678) — في وضع التطوير يرجع `debug_code` ويُحفظ تلقائياً في `otp_code`.\n2. `Auth → Verify OTP` — يحفظ `token` تلقائياً وتُرسل كل الطلبات بعده بـ Bearer.\n3. الضيف: أول `GET /cart` يرجع `token` ويُحفظ في `cart_token` ويرسل في الهيدر `X-Cart-Token`.\n\nالمتغيرات (`part_id`, `item_id`, `vehicle_id`, `address_id`, `number`...) تتعبأ تلقائياً من الاستجابات.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });",
+          "const ct = pm.collectionVariables.get('cart_token');",
+          "if (ct) pm.request.headers.upsert({ key: 'X-Cart-Token', value: ct });",
+          "pm.request.headers.upsert({ key: 'Accept-Language', value: pm.collectionVariables.get('locale') || 'ar' });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api/v1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "cart_token",
+      "value": ""
+    },
+    {
+      "key": "locale",
+      "value": "ar"
+    },
+    {
+      "key": "phone",
+      "value": "0512345678"
+    },
+    {
+      "key": "otp_code",
+      "value": ""
+    },
+    {
+      "key": "number",
+      "value": "DM-261014-0472"
+    },
+    {
+      "key": "part_id",
+      "value": "1"
+    },
+    {
+      "key": "item_id",
+      "value": ""
+    },
+    {
+      "key": "make_id",
+      "value": "1"
+    },
+    {
+      "key": "car_model_id",
+      "value": "1"
+    },
+    {
+      "key": "vehicle_id",
+      "value": ""
+    },
+    {
+      "key": "address_id",
+      "value": ""
+    },
+    {
+      "key": "notification_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Ping",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/ping",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "ping"
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "Auth",
+      "description": "التسجيل والدخول عبر OTP",
+      "item": [
+        {
+          "name": "Register (individual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"individual\",\n  \"phone\": \"{{phone}}\",\n  \"country_code\": \"966\",\n  \"name\": \"عميل تجريبي\",\n  \"city\": \"الرياض\",\n  \"email\": null,\n  \"terms\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.debug_code) pm.collectionVariables.set('otp_code', j.debug_code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register (business)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"business\",\n  \"phone\": \"0550000001\",\n  \"country_code\": \"966\",\n  \"name\": \"مدير الورشة\",\n  \"city\": \"جدة\",\n  \"email\": \"shop@example.com\",\n  \"terms\": true,\n  \"business_name\": \"ورشة النخبة\",\n  \"activity\": \"workshop\",\n  \"cr_number\": \"1010123456\",\n  \"vat_number\": \"300000000000003\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.debug_code) pm.collectionVariables.set('otp_code', j.debug_code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request OTP (login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/otp/request",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "otp",
+                "request"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{phone}}\",\n  \"country_code\": \"966\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.debug_code) pm.collectionVariables.set('otp_code', j.debug_code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP → token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/otp/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "otp",
+                "verify"
+              ]
+            },
+            "description": "يدمج سلة الضيف (X-Cart-Token) مع حساب المستخدم ويرجع Bearer token.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{phone}}\",\n  \"code\": \"{{otp_code}}\",\n  \"device_name\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "if (j.token) { pm.collectionVariables.set('token', j.token); pm.collectionVariables.set('cart_token', ''); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) pm.collectionVariables.set('token', '');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout other devices",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/logout-others",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout-others"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "description": "يتطلب تسجيل الدخول",
+      "item": [
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update me",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"عبدالله محمد السالم\",\n  \"email\": \"abdullah@example.com\",\n  \"city\": \"الرياض\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Devices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/me/devices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me",
+                "devices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register push token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/me/device-token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me",
+                "device-token"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-device-token-here\",\n  \"platform\": \"android\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locale\": \"ar\",\n  \"theme\": \"system\",\n  \"notifications\": {\n    \"orders\": true,\n    \"price\": true,\n    \"stock\": true,\n    \"offers\": false,\n    \"push\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "description": "عام — مع token يستخدم سيارة الكراج النشطة لحساب التوافق",
+      "item": [
+        {
+          "name": "Banners & ads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/banners?placement=hero",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "banners"
+              ],
+              "query": [
+                {
+                  "key": "placement",
+                  "value": "hero",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "placement: hero | strip | side | topbar (فارغ = الكل). click_url يحسب النقرة ثم يحوّل للرابط."
+          }
+        },
+        {
+          "name": "Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Makes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/makes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "makes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.makes && j.makes.length) pm.collectionVariables.set('make_id', j.makes[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Models of make",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/makes/:make/models",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "makes",
+                ":make",
+                "models"
+              ],
+              "variable": [
+                {
+                  "key": "make",
+                  "value": "{{make_id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.models && j.models.length) pm.collectionVariables.set('car_model_id', j.models[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parts (search & filter)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/parts?q=&category=&grade=&in_stock=1&fit_only=1&car_model_id={{car_model_id}}&year=2020&sort=relevance&per_page=20&page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parts"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "grade",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "in_stock",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "fit_only",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "car_model_id",
+                  "value": "{{car_model_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "year",
+                  "value": "2020",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "relevance",
+                  "disabled": false
+                },
+                {
+                  "key": "per_page",
+                  "value": "20",
+                  "disabled": false
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "grade: oem|cert|first — sort: relevance|price_asc|price_desc|newest — per_page ≤ 50"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.data && j.data.length) pm.collectionVariables.set('part_id', j.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Part details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/parts/:part",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parts",
+                ":part"
+              ],
+              "variable": [
+                {
+                  "key": "part",
+                  "value": "{{part_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Notify me when in stock",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/parts/:part/notify-me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parts",
+                ":part",
+                "notify-me"
+              ],
+              "variable": [
+                {
+                  "key": "part",
+                  "value": "{{part_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel notify me",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/parts/:part/notify-me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "parts",
+                ":part",
+                "notify-me"
+              ],
+              "variable": [
+                {
+                  "key": "part",
+                  "value": "{{part_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "description": "ضيف (X-Cart-Token) أو مسجّل",
+      "item": [
+        {
+          "name": "Show cart",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/cart",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cart"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.token) pm.collectionVariables.set('cart_token', j.token);",
+                  "if (j.items && j.items.length) pm.collectionVariables.set('item_id', j.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cart/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cart",
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"part_id\": \"{{part_id}}\",\n  \"qty\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.token) pm.collectionVariables.set('cart_token', j.token);",
+                  "if (j.items && j.items.length) pm.collectionVariables.set('item_id', j.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update qty",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cart/items/:item",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cart",
+                "items",
+                ":item"
+              ],
+              "variable": [
+                {
+                  "key": "item",
+                  "value": "{{item_id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qty\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.token) pm.collectionVariables.set('cart_token', j.token);",
+                  "if (j.items && j.items.length) pm.collectionVariables.set('item_id', j.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove item",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/cart/items/:item",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cart",
+                "items",
+                ":item"
+              ],
+              "variable": [
+                {
+                  "key": "item",
+                  "value": "{{item_id}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.token) pm.collectionVariables.set('cart_token', j.token);",
+                  "if (j.items && j.items.length) pm.collectionVariables.set('item_id', j.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clear cart",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/cart",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cart"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Checkout & Orders",
+      "description": "",
+      "item": [
+        {
+          "name": "Checkout (new address, COD)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/checkout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "checkout"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_method\": \"cod\",\n  \"address\": {\n    \"name\": \"عبدالله محمد\",\n    \"phone\": \"{{phone}}\",\n    \"city\": \"الرياض\",\n    \"line\": \"حي النرجس، شارع الأمير محمد بن سعد، مبنى 4021\",\n    \"national_address\": \"RNAA4021\"\n  },\n  \"save_address\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.order && j.order.number) pm.collectionVariables.set('number', j.order.number);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Checkout (saved address, bank)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/checkout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "checkout"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_method\": \"bank\",\n  \"address_id\": \"{{address_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.order && j.order.number) pm.collectionVariables.set('number', j.order.number);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders?scope=active&page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "active",
+                  "disabled": false
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "scope: active | past (فارغ = الكل)"
+          }
+        },
+        {
+          "name": "Track order (guest)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/track",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "track"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"{{number}}\",\n  \"phone\": \"{{phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Order details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/{{number}}?phone={{phone}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{number}}"
+              ],
+              "query": [
+                {
+                  "key": "phone",
+                  "value": "{{phone}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "الضيف يرسل phone، المسجّل لا يحتاجه"
+          }
+        },
+        {
+          "name": "Upload bank receipt",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/{{number}}/receipt",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{number}}",
+                "receipt"
+              ]
+            },
+            "description": "jpg/png/pdf حتى 5MB",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "receipt",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "phone",
+                  "value": "{{phone}}",
+                  "type": "text"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/{{number}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{number}}",
+                "cancel"
+              ]
+            },
+            "description": "متاح فقط للحالات new و pending_transfer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Invoice (HTML)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/{{number}}/invoice?phone={{phone}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{number}}",
+                "invoice"
+              ],
+              "query": [
+                {
+                  "key": "phone",
+                  "value": "{{phone}}",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Garage",
+      "description": "يتطلب تسجيل الدخول",
+      "item": [
+        {
+          "name": "List vehicles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/garage",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "garage"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.vehicles && j.vehicles.length) pm.collectionVariables.set('vehicle_id', j.vehicles[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/garage",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "garage"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"car_model_id\": \"{{car_model_id}}\",\n  \"year\": 2020,\n  \"engine\": \"2.5L\",\n  \"vin\": \"JTDBR32E720123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.vehicle) pm.collectionVariables.set('vehicle_id', j.vehicle.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update vehicle",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/garage/:vehicle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "garage",
+                ":vehicle"
+              ],
+              "variable": [
+                {
+                  "key": "vehicle",
+                  "value": "{{vehicle_id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"year\": 2021,\n  \"engine\": \"2.5L Hybrid\",\n  \"vin\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Set active vehicle",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/garage/:vehicle/activate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "garage",
+                ":vehicle",
+                "activate"
+              ],
+              "variable": [
+                {
+                  "key": "vehicle",
+                  "value": "{{vehicle_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete vehicle",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/garage/:vehicle",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "garage",
+                ":vehicle"
+              ],
+              "variable": [
+                {
+                  "key": "vehicle",
+                  "value": "{{vehicle_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Addresses",
+      "description": "يتطلب تسجيل الدخول",
+      "item": [
+        {
+          "name": "List addresses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/addresses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "addresses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.addresses && j.addresses.length) pm.collectionVariables.set('address_id', j.addresses[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add address",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/addresses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "addresses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"العمل\",\n  \"name\": \"عبدالله محمد\",\n  \"phone\": \"{{phone}}\",\n  \"city\": \"الرياض\",\n  \"line\": \"طريق الملك فهد، برج 12\",\n  \"national_address\": \"RRRD2929\",\n  \"is_default\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.address) pm.collectionVariables.set('address_id', j.address.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update address",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/addresses/:address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "addresses",
+                ":address"
+              ],
+              "variable": [
+                {
+                  "key": "address",
+                  "value": "{{address_id}}"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"المنزل\",\n  \"name\": \"عبدالله محمد\",\n  \"phone\": \"{{phone}}\",\n  \"city\": \"الرياض\",\n  \"line\": \"حي النرجس، مبنى 4021، شقة 3\",\n  \"national_address\": \"RNAA4021\",\n  \"is_default\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete address",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/addresses/:address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "addresses",
+                ":address"
+              ],
+              "variable": [
+                {
+                  "key": "address",
+                  "value": "{{address_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "يتطلب تسجيل الدخول",
+      "item": [
+        {
+          "name": "List notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications?page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.data && j.data.length) pm.collectionVariables.set('notification_id', j.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark one read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/:notification/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                ":notification",
+                "read"
+              ],
+              "variable": [
+                {
+                  "key": "notification",
+                  "value": "{{notification_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark all read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
