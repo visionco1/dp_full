@@ -23,7 +23,9 @@
           "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });",
           "const ct = pm.collectionVariables.get('cart_token');",
           "if (ct) pm.request.headers.upsert({ key: 'X-Cart-Token', value: ct });",
-          "pm.request.headers.upsert({ key: 'Accept-Language', value: pm.collectionVariables.get('locale') || 'ar' });"
+          "pm.request.headers.upsert({ key: 'Accept-Language', value: pm.collectionVariables.get('locale') || 'ar' });",
+          "const br = pm.collectionVariables.get('branch_id');",
+          "if (br) pm.request.headers.upsert({ key: 'X-Branch-Id', value: br });"
         ]
       }
     }
@@ -62,6 +64,10 @@
       "value": "1"
     },
     {
+      "key": "category_id",
+      "value": "electrical"
+    },
+    {
       "key": "item_id",
       "value": ""
     },
@@ -83,6 +89,10 @@
     },
     {
       "key": "notification_id",
+      "value": ""
+    },
+    {
+      "key": "branch_id",
       "value": ""
     }
   ],
@@ -154,6 +164,65 @@
           "type": "noauth"
         }
       }
+    },
+    {
+      "name": "Branches",
+      "description": "الفروع. اختيار الفرع = هيدر X-Branch-Id (المتغير branch_id) → كل التوفر (available/in_stock) يكون لهذا الفرع. بدونه: الفرع الافتراضي.",
+      "item": [
+        {
+          "name": "List branches (+ cart coverage)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/branches?fulfillment=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "branches"
+              ],
+              "query": [
+                {
+                  "key": "fulfillment",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "مع X-Cart-Token أو token: لكل فرع cart.can_fulfill و cart.missing. fulfillment=pickup|delivery يصفّي الفروع الداعمة."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "const ok = (j.branches || []).find(b => !b.cart || b.cart.can_fulfill); if (ok && !pm.collectionVariables.get('branch_id')) pm.collectionVariables.set('branch_id', ok.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Branch details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/branches/{{branch_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "branches",
+                "{{branch_id}}"
+              ]
+            }
+          }
+        }
+      ]
     },
     {
       "name": "Auth",
@@ -585,7 +654,7 @@
           }
         },
         {
-          "name": "Categories",
+          "name": "Categories (with subcategories)",
           "request": {
             "method": "GET",
             "header": [],
@@ -597,7 +666,50 @@
               "path": [
                 "categories"
               ]
-            }
+            },
+            "description": "الأقسام الرئيسية، وكل قسم فيه subcategories. parts_count للرئيسي يشمل الفرعية."
+          }
+        },
+        {
+          "name": "Subcategories of category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/categories/:category/subcategories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "categories",
+                ":category",
+                "subcategories"
+              ],
+              "variable": [
+                {
+                  "key": "category",
+                  "value": "{{category_id}}"
+                }
+              ]
+            },
+            "description": "يقبل id أو slug مثل electrical"
+          }
+        },
+        {
+          "name": "Grades",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/grades",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "grades"
+              ]
+            },
+            "description": "code: oem | cert | first — فلتر parts يقبل أيضاً aftermarket كاسم بديل لـ first"
           }
         },
         {
@@ -670,7 +782,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/parts?q=&category=&grade=&in_stock=1&fit_only=1&car_model_id={{car_model_id}}&year=2020&sort=relevance&per_page=20&page=1",
+              "raw": "{{base_url}}/parts?q=&category=&subcategory=&grade=&in_stock=1&fit_only=1&car_model_id={{car_model_id}}&year=2020&sort=relevance&per_page=20&page=1",
               "host": [
                 "{{base_url}}"
               ],
@@ -685,6 +797,11 @@
                 },
                 {
                   "key": "category",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "subcategory",
                   "value": "",
                   "disabled": true
                 },
@@ -828,14 +945,22 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/cart",
+              "raw": "{{base_url}}/cart?fulfillment=delivery",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "cart"
+              ],
+              "query": [
+                {
+                  "key": "fulfillment",
+                  "value": "delivery",
+                  "disabled": false
+                }
               ]
-            }
+            },
+            "description": "التوفر لفرع X-Branch-Id. fulfillment=pickup يلغي الشحن من الإجمالي."
           },
           "event": [
             {
@@ -1006,7 +1131,7 @@
       "description": "",
       "item": [
         {
-          "name": "Checkout (new address, COD)",
+          "name": "Checkout — pickup from branch",
           "request": {
             "method": "POST",
             "header": [
@@ -1024,9 +1149,53 @@
                 "checkout"
               ]
             },
+            "description": "استلام من الفرع: بدون شحن ولا عنوان. contact اختياري للمستخدم المسجّل (يُؤخذ من حسابه).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"payment_method\": \"cod\",\n  \"address\": {\n    \"name\": \"عبدالله محمد\",\n    \"phone\": \"{{phone}}\",\n    \"city\": \"الرياض\",\n    \"line\": \"حي النرجس، شارع الأمير محمد بن سعد، مبنى 4021\",\n    \"national_address\": \"RNAA4021\"\n  },\n  \"save_address\": true\n}",
+              "raw": "{\n  \"fulfillment\": \"pickup\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"payment_method\": \"cod\",\n  \"contact\": {\n    \"name\": \"عبدالله محمد\",\n    \"phone\": \"{{phone}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.order && j.order.number) pm.collectionVariables.set('number', j.order.number);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Checkout (delivery, new address, COD)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/checkout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "checkout"
+              ]
+            },
+            "description": "fulfillment=delivery (الافتراضي). branch_id = الفرع الذي يشحن؛ بدونه X-Branch-Id ثم الفرع الافتراضي.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fulfillment\": \"delivery\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"payment_method\": \"cod\",\n  \"address\": {\n    \"name\": \"عبدالله محمد\",\n    \"phone\": \"{{phone}}\",\n    \"city\": \"الرياض\",\n    \"line\": \"حي النرجس، شارع الأمير محمد بن سعد، مبنى 4021\",\n    \"national_address\": \"RNAA4021\"\n  },\n  \"save_address\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"

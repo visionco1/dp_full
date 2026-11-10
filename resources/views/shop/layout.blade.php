@@ -60,6 +60,14 @@
       </button>
     </form>
     <div class="flex items-center gap-1 mr-auto sm:mr-0">
+      @if (($shopBranches ?? collect())->count() > 1)
+        <form method="post" action="{{ route('shop.branch') }}" class="hidden lg:block">@csrf
+          <label class="sr-only" for="hdr-branch">الفرع</label>
+          <select id="hdr-branch" name="branch_id" onchange="this.form.submit()" class="h-10 rounded-xl bg-white/10 border border-white/15 text-white text-sm px-2 max-w-[150px]" title="التوفر المعروض لهذا الفرع">
+            @foreach ($shopBranches as $sb)<option value="{{ $sb->id }}" class="text-ink" @selected($sb->id === $shopBranchId)>📍 {{ $sb->name }}</option>@endforeach
+          </select>
+        </form>
+      @endif
       <a href="{{ route('shop.track') }}" class="hidden md:inline-flex text-sm min-h-[44px] items-center gap-2 px-3 rounded-xl hover:bg-white/10">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>تتبّع طلبك</a>
       <a href="{{ route('shop.cart') }}" class="relative min-h-[44px] inline-flex items-center gap-2 px-4 rounded-xl bg-brand text-ink font-bold text-sm hover:brightness-105">

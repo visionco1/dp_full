@@ -8,7 +8,7 @@
   @csrf @if(!$isNew) @method('PUT') @endif
   @php $v = fn ($k, $d = '') => old($k, $part->{$k} ?? $d); $in = 'mt-1 w-full h-11 rounded-xl border px-3'; @endphp
   <label class="text-sm font-semibold">رقم القطعة (OEM)<input name="sku" value="{{ $v('sku') }}" required dir="ltr" class="{{ $in }} font-mono text-left"></label>
-  <label class="text-sm font-semibold">القسم<select name="category_id" class="{{ $in }}"><option value="">—</option>@foreach ($categories as $c)<option value="{{ $c->id }}" @selected($v('category_id') == $c->id)>{{ $c->name_ar }}</option>@endforeach</select></label>
+  <label class="text-sm font-semibold">القسم<select name="category_id" class="{{ $in }}"><option value="">—</option>@foreach ($categories as $c)<option value="{{ $c->id }}" @selected($v('category_id') == $c->id)>{{ $c->name_ar }}</option>@foreach ($c->children as $s)<option value="{{ $s->id }}" @selected($v('category_id') == $s->id)>&nbsp;&nbsp;— {{ $s->name_ar }}</option>@endforeach @endforeach</select></label>
   <label class="text-sm font-semibold sm:col-span-2">الاسم بالعربي<input name="name_ar" value="{{ $v('name_ar') }}" required class="{{ $in }}"></label>
   <label class="text-sm font-semibold">الاسم بالإنجليزي<input name="name_en" value="{{ $v('name_en') }}" dir="ltr" class="{{ $in }} text-left"></label>
   <label class="text-sm font-semibold">العلامة<input name="brand" value="{{ $v('brand') }}" class="{{ $in }}"></label>

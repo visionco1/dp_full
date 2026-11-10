@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Banner;
+use App\Models\Branch;
 use App\Models\Cart;
 use App\Models\CarModel;
 use App\Models\Category;
@@ -39,10 +40,8 @@ class ShopController extends Controller
     public function index(Request $r)
     {
         $r->validate(['grade' => 'nullable|in:oem,cert,first', 'sort' => 'nullable|in:price_asc,price_desc,newest']);
-        $q = Part::with(['inventory', 'category'])->where('active', true)->search($r->input('q'));
-        if ($r->filled('category')) {
-            $q->whereHas('category', fn ($w) => $w->where('slug', $r->input('category')));
-        }
+        $q = Part::with(['inventory', 'category'])->where('active', true)->search($r->input('q'))
+            ->inCategory($r->input('category'));   // القسم الرئيسي يشمل الفرعية
         if ($r->filled('grade')) {
             $q->where('grade', $r->input('grade'));
         }
@@ -61,7 +60,8 @@ class ShopController extends Controller
         };
         return view('shop.index', [
             'parts' => $q->paginate(12)->withQueryString(),
-            'categories' => Category::orderBy('id')->get(),
+            'categories' => Category::roots()->with('children')->get(),
+            'current' => $r->filled('category') ? Category::with('children', 'parent.children')->where('slug', $r->input('category'))->first() : null,
             'makes' => Make::with('models')->orderBy('name_ar')->get(),
             'cartCount' => $this->cart($r, false)?->items()->sum('qty') ?? 0,
         ]);
@@ -112,31 +112,57 @@ class ShopController extends Controller
         return back();
     }
 
-    public function checkout(Request $r)
+    /** اختيار الفرع من الهيدر — التوفر في الموقع يُعرض لهذا الفرع */
+    public function setBranch(Request $r)
+    {
+        $id = $r->validate(['branch_id' => 'required|integer'])['branch_id'];
+        abort_unless(Branch::whereKey($id)->where('active', true)->exists(), 404);
+        $r->session()->put('shop_branch', (int) $id);
+        return back();
+    }
+
+    public function checkout(Request $r, \App\Services\InventoryService $stock)
     {
         $c = $this->cart($r, false);
         if (!$c || !$c->items()->exists()) {
             return redirect()->route('shop.cart');
         }
         $s = $this->carts->summary($c);
-        return view('shop.checkout', ['cart' => $s, 'cartCount' => $s['totals']['items_count']]);
+        // لكل فرع: هل يغطي السلة كاملة؟
+        $items = collect($s['items']);
+        $branches = Branch::active()->get()->map(function ($b) use ($items, $stock) {
+            $avail = $stock->availableAt($b->id, $items->pluck('part_id')->all());
+            $b->missing = $items->filter(fn ($i) => ($avail[$i['part_id']] ?? 0) < $i['qty'])->pluck('name')->values();
+            return $b;
+        });
+        return view('shop.checkout', [
+            'cart' => $s, 'cartCount' => $s['totals']['items_count'], 'branches' => $branches,
+            'pickupTotals' => $this->carts->totals($c->items->map(fn ($i) => [$i->part, $i->qty])->filter(fn ($l) => $l[0]?->active)->all(), 'pickup'),
+            'selectedBranch' => old('branch_id', $r->session()->get('shop_branch') ?? $branches->firstWhere(fn ($b) => $b->missing->isEmpty())?->id),
+        ]);
     }
 
     public function place(Request $r)
     {
+        $delivery = $r->input('fulfillment', 'delivery') !== 'pickup';
         $d = $r->validate([
-            'name' => 'required|string|max:80', 'phone' => 'required|string', 'city' => 'required|string|max:60', 'line' => 'required|string|max:200',
+            'fulfillment' => 'nullable|in:delivery,pickup', 'branch_id' => 'nullable|integer|exists:branches,id',
+            'name' => 'required|string|max:80', 'phone' => 'required|string',
+            'city' => [$delivery ? 'required' : 'nullable', 'string', 'max:60'], 'line' => [$delivery ? 'required' : 'nullable', 'string', 'max:200'],
             'national_address' => ['nullable', 'regex:/^[A-Za-z]{4}\d{4}$/'], 'payment_method' => 'required|in:cod,bank',
-        ], ['national_address.regex' => 'العنوان الوطني 4 حروف و4 أرقام مثل RNAA4021']);
+        ], ['national_address.regex' => 'العنوان الوطني 4 حروف و4 أرقام مثل RNAA4021', 'branch_id.required' => 'اختر الفرع',
+            'city.required' => 'أدخل المدينة للتوصيل', 'line.required' => 'أدخل العنوان للتوصيل']);
         $phone = Phone::normalize($d['phone']) ?? throw ValidationException::withMessages(['phone' => 'برجاء إدخال رقم جوال صحيح (10 أرقام)']);
         $c = $this->cart($r, false);
         if (!$c || !$c->items()->exists()) {
             return redirect()->route('shop.cart');
         }
-        $addr = ['name' => $d['name'], 'phone' => $phone, 'city' => $d['city'], 'line' => $d['line'], 'national_address' => $d['national_address'] ?? null];
+        $addr = $delivery ? ['name' => $d['name'], 'phone' => $phone, 'city' => $d['city'], 'line' => $d['line'], 'national_address' => $d['national_address'] ?? null] : null;
         $order = $this->orders->place($c->items->map(fn ($i) => ['part_id' => $i->part_id, 'qty' => $i->qty])->all(), [
             'channel' => 'web', 'payment' => $d['payment_method'], 'customer' => ['name' => $d['name'], 'phone' => $phone], 'address' => $addr,
+            'fulfillment' => $delivery ? 'delivery' : 'pickup', 'branch_id' => $d['branch_id'] ?? null,
         ]);
+        $r->session()->put('shop_branch', $order->branch_id);
         $c->items()->delete();
         $r->session()->push('my_orders', $order->number);
         return redirect()->route('shop.order', $order->number);
@@ -144,7 +170,7 @@ class ShopController extends Controller
 
     private function owned(Request $r, string $number): Order
     {
-        $o = Order::with('items', 'events')->where('number', strtoupper($number))->firstOrFail();
+        $o = Order::with('items', 'events', 'branch')->where('number', strtoupper($number))->firstOrFail();
         abort_unless(in_array($o->number, (array) $r->session()->get('my_orders', []), true), 404);
         return $o;
     }
@@ -165,7 +191,7 @@ class ShopController extends Controller
     public function cancel(Request $r, string $number)
     {
         $o = $this->owned($r, $number);
-        abort_unless(in_array($o->status, ['new', 'pending_transfer'], true), 422, 'لا يمكن إلغاء الطلب بعد بدء التجهيز — تواصل مع الدعم');
+        abort_unless(in_array($o->status, Order::CUSTOMER_CANCELLABLE, true), 422, 'لا يمكن إلغاء الطلب بعد بدء التجهيز — تواصل مع الدعم');
         $this->orders->cancel($o, null, 'ألغاه العميل');
         return back()->with('ok', 'تم إلغاء الطلب');
     }

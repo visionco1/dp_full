@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias(['perm' => RequirePermission::class]);
+        $middleware->appendToGroup('web', \App\Http\Middleware\SetBranch::class);
+        $middleware->appendToGroup('api', \App\Http\Middleware\SetBranch::class);
         $middleware->redirectGuestsTo(fn (Request $r) => route('login'));
     })
     ->withExceptions(function (Exceptions $exceptions) {

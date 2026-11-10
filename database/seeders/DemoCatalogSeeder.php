@@ -25,6 +25,7 @@ class DemoCatalogSeeder extends Seeder
     {
         $models = $this->makes();
         $this->parts($models);
+        $this->subcategories();
         $this->describeAndIllustrate();
         $this->categoryImages();
         $this->customerExtras();
@@ -128,7 +129,7 @@ class DemoCatalogSeeder extends Seeder
     private function describeAndIllustrate(): void
     {
         $warranty = ['oem' => 'ضمان سنة من الوكيل', 'cert' => 'ضمان 6 أشهر', 'first' => 'ضمان 3 أشهر'];
-        Part::with('category', 'fitments.carModel.make')->get()->each(function (Part $p) use ($warranty) {
+        Part::with('category.parent', 'fitments.carModel.make')->get()->each(function (Part $p) use ($warranty) {
             $changes = [];
             if (!$p->description) {
                 $cars = $p->fitments->map(fn ($f) => $f->carModel ? $f->carModel->make->name_ar.' '.$f->carModel->name_ar.' '.$f->year_from.'–'.$f->year_to : null)->filter()->take(4)->implode('، ');
@@ -139,17 +140,55 @@ class DemoCatalogSeeder extends Seeder
                     $p->is_bulky ? 'قطعة كبيرة — تُضاف رسوم شحن خاصة.' : 'تأكد من التوافق بإضافة سيارتك في الكراج.',
                 ])));
             }
-            if (!$p->image && ($img = SeedArt::part(SeedArt::KINDS[$p->category?->slug] ?? 'gear', $p->sku, $p->grade))) {
+            if (!$p->image && ($img = SeedArt::part(SeedArt::KINDS[$p->category?->parent?->slug ?? $p->category?->slug] ?? 'gear', $p->sku, $p->grade))) {
                 $changes['image'] = $img;
             }
             $changes && $p->update($changes);
         });
     }
 
+    /**
+     * الأقسام الفرعية: [قسم رئيسي => [[slug, عربي, إنجليزي, كلمات في اسم القطعة]]]
+     * القطع في القسم الرئيسي تُنقل للفرعي المطابق لاسمها. آمن للتكرار.
+     */
+    private const SUBCATEGORIES = [
+        'brakes' => [['brake-pads', 'فحمات فرامل', 'Brake pads', ['فحمات']], ['brake-discs', 'هوبات فرامل', 'Brake discs', ['هوب']]],
+        'filters' => [['oil-filters', 'فلاتر زيت', 'Oil filters', ['فلتر زيت']], ['air-filters', 'فلاتر هواء', 'Air filters', ['فلتر هواء']],
+            ['cabin-filters', 'فلاتر مكيف', 'Cabin filters', ['فلتر مكيف']], ['fuel-filters', 'فلاتر بنزين', 'Fuel filters', ['فلتر بنزين']]],
+        'lighting' => [['headlights', 'كشافات', 'Headlights', ['كشاف']], ['tail-lights', 'سطوب خلفية', 'Tail lights', ['سطب']], ['bulbs', 'لمبات', 'Bulbs', ['لمبة']]],
+        'body' => [['fenders', 'رفارف', 'Fenders', ['رفرف']], ['bumpers', 'صدامات', 'Bumpers', ['صدام']], ['mirrors', 'مرايات', 'Mirrors', ['مراية']], ['hoods', 'كبابيت', 'Hoods', ['كبوت']]],
+        'suspension' => [['shock-absorbers', 'مساعدات', 'Shock absorbers', ['مساعد']], ['control-arms', 'مقصات وأذرع', 'Control arms', ['مقص', 'ذراع']]],
+        'engine' => [['spark-plugs', 'بواجي', 'Spark plugs', ['بواجي']], ['engine-cooling', 'تبريد المحرك', 'Engine cooling', ['طرمبة ماء', 'رديتر']], ['belts', 'سيور', 'Belts', ['سير']]],
+        'electrical' => [['batteries', 'بطاريات', 'Batteries', ['بطارية']], ['alternators-starters', 'دينمو وسلف', 'Alternators & starters', ['دينمو', 'سلف']], ['sensors', 'حساسات', 'Sensors', ['حساس']]],
+        'fluids' => [['engine-oil', 'زيوت محرك', 'Engine oil', ['زيت محرك']], ['transmission-oil', 'زيوت قير', 'Transmission oil', ['زيت قير']], ['coolant-brake-fluid', 'ماء رديتر وزيت فرامل', 'Coolant & brake fluid', ['ماء رديتر', 'زيت فرامل']]],
+    ];
+
+    private function subcategories(): void
+    {
+        foreach (self::SUBCATEGORIES as $parentSlug => $subs) {
+            $parent = Category::where('slug', $parentSlug)->whereNull('parent_id')->first();
+            if (!$parent) {
+                continue;
+            }
+            foreach ($subs as $i => [$slug, $ar, $en, $words]) {
+                $sub = Category::firstOrCreate(['slug' => $slug], ['parent_id' => $parent->id, 'name_ar' => $ar, 'name_en' => $en, 'sort' => $i + 1]);
+                if ($sub->parent_id !== $parent->id) {
+                    continue;   // slug مستخدم لقسم آخر عدّله المدير — لا نلمسه
+                }
+                Part::where('category_id', $parent->id)
+                    ->where(fn ($q) => collect($words)->each(fn ($w) => $q->orWhere('name_ar', 'like', "%$w%")))
+                    ->update(['category_id' => $sub->id]);
+            }
+        }
+    }
+
     private function categoryImages(): void
     {
-        foreach (Category::whereNull('image')->get() as $c) {
-            if ($img = SeedArt::category($c->slug, self::CATEGORY_COLORS[$c->slug] ?? '#FF6B00')) {
+        $alt = ['#111827', '#475569', '#0F766E', '#7C2D12'];
+        foreach (Category::with('parent')->whereNull('image')->get() as $c) {
+            $rootSlug = $c->parent?->slug ?? $c->slug;
+            $color = $c->parent ? $alt[($c->sort ?: 1) % count($alt)] : (self::CATEGORY_COLORS[$c->slug] ?? '#FF6B00');
+            if ($img = SeedArt::category($c->slug, $color, SeedArt::KINDS[$rootSlug] ?? null)) {
                 $c->update(['image' => $img]);
             }
         }

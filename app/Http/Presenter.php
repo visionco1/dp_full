@@ -14,6 +14,37 @@ use App\Models\Vehicle;
 class Presenter
 {
     public const GRADES = ['oem' => 'أصلي وكالة', 'cert' => 'تجاري بديل معتمد', 'first' => 'درجة أولى'];
+
+    /** تفاصيل الدرجات لـ GET /grades */
+    public const GRADE_DETAILS = [
+        'oem' => ['label_en' => 'Genuine OEM', 'description_ar' => 'قطع أصلية من الوكيل بنفس مواصفات المصنع', 'warranty_months' => 12, 'color' => '#059669'],
+        'cert' => ['label_en' => 'Certified Aftermarket', 'description_ar' => 'بديل تجاري معتمد بجودة مطابقة وسعر أقل', 'warranty_months' => 6, 'color' => '#0284C7'],
+        'first' => ['label_en' => 'First Grade', 'description_ar' => 'درجة أولى اقتصادية للاستخدام اليومي', 'warranty_months' => 3, 'color' => '#D97706'],
+    ];
+
+    /** أسماء بديلة يقبلها فلتر grade (التطبيق يستخدم aftermarket لدرجة أولى) */
+    public const GRADE_ALIASES = ['aftermarket' => 'first', 'genuine' => 'oem', 'certified' => 'cert'];
+
+    public static function branch(\App\Models\Branch $b): array
+    {
+        return [
+            'id' => $b->id, 'name' => $b->name, 'code' => $b->code, 'city' => $b->city, 'address' => $b->address,
+            'phone' => $b->phone, 'hours' => $b->hours, 'lat' => $b->lat, 'lng' => $b->lng,
+            'pickup_enabled' => $b->pickup_enabled, 'delivery_enabled' => $b->delivery_enabled, 'is_default' => $b->is_default,
+        ];
+    }
+
+    public static function category(\App\Models\Category $c, bool $withChildren = false): array
+    {
+        $row = [
+            'id' => $c->id, 'parent_id' => $c->parent_id, 'slug' => $c->slug, 'name_ar' => $c->name_ar, 'name_en' => $c->name_en,
+            'image' => $c->imageUrl(), 'parts_count' => $c->parts_count ?? null,
+        ];
+        if ($withChildren) {
+            $row['subcategories'] = $c->children->map(fn ($s) => self::category($s))->values();
+        }
+        return $row;
+    }
     public const PAYMENT_LABELS = ['cod' => 'الدفع عند الاستلام', 'bank' => 'تحويل بنكي مباشر', 'cash' => 'نقداً', 'card' => 'بطاقة'];
 
     /**
@@ -58,6 +89,8 @@ class Presenter
             'name_en' => $p->name_en,
             'brand' => $p->brand,
             'category' => $p->category?->name_ar,
+            'category_id' => $p->category_id,
+            'main_category_id' => $p->category?->parent_id ?? $p->category_id,
             'grade' => $p->grade,
             'grade_label' => self::GRADES[$p->grade] ?? $p->grade,
             'side' => $p->side,
@@ -71,6 +104,7 @@ class Presenter
         ];
         if ($detail) {
             $row['description'] = $p->description;
+            $row['branches_stock'] = $p->stockByBranch();
             $row['fitments'] = $p->fitments->map(fn ($f) => [
                 'car_model_id' => $f->car_model_id,
                 'model' => $f->carModel ? $f->carModel->make->name_ar.' '.$f->carModel->name_ar : null,
@@ -120,10 +154,11 @@ class Presenter
 
     public static function order(Order $o, bool $withItems = true): array
     {
-        $o->loadMissing('items', 'events');
-        $stages = $o->payment_method === 'bank'
-            ? ['new', 'pending_transfer', 'processing', 'shipped', 'completed']
-            : ['new', 'processing', 'shipped', 'completed'];
+        $o->loadMissing('items', 'events', 'branch');
+        $stages = array_values(array_filter([
+            'new', $o->payment_method === 'bank' ? 'pending_transfer' : null, 'processing',
+            $o->isPickup() ? 'ready' : 'shipped', 'completed',
+        ]));
         $labels = config('dp.order_statuses');
         $idx = array_search($o->status, $stages, true);
         $timeline = collect($stages)->map(function ($s, $i) use ($idx, $o, $labels) {
@@ -140,6 +175,9 @@ class Presenter
             'status' => $o->status,
             'status_label' => $o->status_label,
             'channel' => $o->channel,
+            'fulfillment' => $o->fulfillment,
+            'fulfillment_label' => Order::FULFILLMENT[$o->fulfillment] ?? $o->fulfillment,
+            'branch' => $o->branch ? self::branch($o->branch) : null,
             'placed_at' => $o->placed_at?->toIso8601String(),
             'payment' => [
                 'method' => $o->payment_method,
@@ -152,7 +190,7 @@ class Presenter
             'waybill_no' => $o->waybill_no,
             'receipt_url' => $o->receipt_path ? asset('storage/'.$o->receipt_path) : null,
             'can_upload_receipt' => $o->payment_method === 'bank' && $o->status === 'pending_transfer' && $o->payment_status !== 'paid',
-            'can_cancel' => in_array($o->status, ['new', 'pending_transfer'], true),
+            'can_cancel' => in_array($o->status, Order::CUSTOMER_CANCELLABLE, true),
             'cancel_reason' => $o->cancel_reason,
             'timeline' => $timeline,
             'items_count' => $o->items->sum('qty'),

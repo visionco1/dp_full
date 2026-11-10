@@ -49,6 +49,7 @@
         <input name="name" value="{{ $u->name }}" aria-label="الاسم" class="h-11 rounded-xl border px-3">
         <input name="email" type="email" dir="ltr" value="{{ $u->email }}" aria-label="البريد" class="h-11 rounded-xl border px-3">
         <select name="role_id" aria-label="الدور" class="h-11 rounded-xl border px-3">@foreach ($roles as $r)<option value="{{ $r->id }}" @selected($u->role_id === $r->id)>{{ $r->name }}</option>@endforeach</select>
+        <select name="branch_id" aria-label="الفرع" class="h-11 rounded-xl border px-3"><option value="">كل الفروع (يبدّل بنفسه)</option>@foreach (\App\Models\Branch::active()->get() as $bb)<option value="{{ $bb->id }}" @selected(($u->branch_id ?? null) === $bb->id)>{{ $bb->name }}</option>@endforeach</select>
         <input name="password" type="password" dir="ltr" placeholder="كلمة مرور جديدة (اختياري)" class="h-11 rounded-xl border px-3">
         <label class="flex items-center gap-2 min-h-[44px] text-sm"><input type="checkbox" name="active" value="1" class="w-5 h-5 accent-black" @checked($u->active)>الحساب مفعّل</label>
         <button class="h-11 px-5 rounded-xl bg-ink text-white font-semibold">حفظ</button>
@@ -60,6 +61,7 @@
       <input name="name" required placeholder="الاسم" class="h-11 rounded-xl border px-3">
       <input name="email" type="email" dir="ltr" required placeholder="البريد" class="h-11 rounded-xl border px-3">
       <select name="role_id" required class="h-11 rounded-xl border px-3">@foreach ($roles as $r)<option value="{{ $r->id }}">{{ $r->name }}</option>@endforeach</select>
+      <select name="branch_id" aria-label="الفرع" class="h-11 rounded-xl border px-3"><option value="">كل الفروع (يبدّل بنفسه)</option>@foreach (\App\Models\Branch::active()->get() as $bb)<option value="{{ $bb->id }}" @selected(null === $bb->id)>{{ $bb->name }}</option>@endforeach</select>
       <input name="password" type="password" dir="ltr" required minlength="8" placeholder="كلمة المرور (8+)" class="h-11 rounded-xl border px-3">
       <button class="h-11 px-5 rounded-xl bg-brand text-ink font-bold sm:col-span-2">إضافة</button>
     </form>

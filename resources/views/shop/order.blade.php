@@ -5,6 +5,16 @@
   <div class="bg-white rounded-2xl border border-line p-5">
     <div class="flex flex-wrap items-center gap-3"><h1 class="font-kufi text-xl font-extrabold">طلب <span dir="ltr" class="num">{{ $order->number }}</span></h1><span class="px-3 py-1 rounded-full bg-ink text-white text-sm font-bold">{{ $order->status_label }}</span></div>
     <p class="text-sm text-neutral-600 mt-1">{{ $order->placed_at->format('Y-m-d H:i') }}</p>
+    @if ($order->branch)
+      <div class="mt-3 rounded-xl p-3 text-sm {{ $order->isPickup() ? 'bg-violet-50 text-violet-950' : 'bg-paper' }}">
+        <b>{{ $order->isPickup() ? 'الاستلام من: ' : 'يُشحن من: ' }}{{ $order->branch->name }}</b> — {{ $order->branch->city }}
+        @if ($order->isPickup())
+          @if ($order->branch->address)<div>{{ $order->branch->address }}</div>@endif
+          @if ($order->branch->hours)<div class="text-xs mt-0.5">{{ $order->branch->hours }}@if ($order->branch->phone) · <span dir="ltr">{{ $order->branch->phone }}</span>@endif</div>@endif
+          @if ($order->status === 'ready')<div class="mt-2 font-bold text-violet-800">طلبك جاهز — أحضر رقم الطلب للاستلام</div>@endif
+        @endif
+      </div>
+    @endif
   </div>
   @if ($order->payment_method === 'bank' && $order->status === 'pending_transfer')
   <div class="bg-white rounded-2xl border-2 border-brand p-5 space-y-3">
@@ -22,7 +32,7 @@
   </div>
   <div class="bg-white rounded-2xl border border-line p-5"><h2 class="font-bold mb-3">حالة الطلب</h2>
     <ol class="space-y-3 text-sm border-r-2 border-line pr-4">@foreach ($order->events as $e)<li class="relative"><span class="absolute -right-[22px] top-1.5 w-3 h-3 rounded-full bg-brand"></span><div class="font-semibold">{{ config('dp.order_statuses.'.$e->status, $e->status) }}</div><div class="text-neutral-600">{{ $e->note }}</div><div class="text-xs text-neutral-500 num">{{ $e->created_at->format('Y-m-d H:i') }}</div></li>@endforeach</ol></div>
-  @if (in_array($order->status, ['new', 'pending_transfer']))
+  @if (in_array($order->status, \App\Models\Order::CUSTOMER_CANCELLABLE))
   <form method="post" action="{{ route('shop.order.cancel', $order->number) }}" onsubmit="return confirm('إلغاء الطلب؟')">@csrf<button class="h-11 px-5 rounded-xl border-2 border-red-700 text-red-800 font-semibold">إلغاء الطلب</button></form>
   @endif
 </div>

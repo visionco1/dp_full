@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 @section('title', 'معاينة الاستيراد')
-@section('heading', 'معاينة استيراد المخزون')
+@section('heading', 'معاينة استيراد المخزون — '.($branch->name ?? ''))
 @section('content')
 <p class="text-sm text-neutral-600 mb-4">الملف: <span class="font-mono" dir="ltr">{{ $file }}</span> — <b class="num">{{ count($changes) }}</b> تغيير صالح، <b class="num {{ count($errors) ? 'text-red-700' : '' }}">{{ count($errors) }}</b> خطأ (سيتم تخطيها).</p>
 @if ($alerts)<div class="mb-4 rounded-xl bg-orange-50 border border-orange-200 px-4 py-3 text-sm">سيصل تنبيه «عادت للمخزون» إلى <b class="num">{{ $alerts }}</b> عميل مشترك في «أعلمني عند التوفر».</div>@endif

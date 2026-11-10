@@ -25,6 +25,7 @@ class User extends Authenticatable
     public const DEFAULT_PREFS = ['orders' => true, 'price' => true, 'stock' => true, 'offers' => false, 'push' => true];
 
     public function role() { return $this->belongsTo(Role::class); }
+    public function branch() { return $this->belongsTo(Branch::class); }
     public function vehicles() { return $this->hasMany(Vehicle::class); }
     public function addresses() { return $this->hasMany(Address::class); }
     public function orders() { return $this->hasMany(Order::class); }

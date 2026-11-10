@@ -43,7 +43,8 @@ class DashboardController extends Controller
         $profit = $money ? (float) OrderItem::whereHas('order', fn ($q) => $q->where('status', '!=', 'cancelled')->where('placed_at', '>=', $todayStart))
             ->selectRaw('COALESCE(SUM((unit_price - unit_cost) * qty),0) as p')->value('p') : null;
 
-        $low = Inventory::with('part')->whereRaw('on_hand - reserved <= low_stock_at')->orderByRaw('on_hand - reserved')->limit(8)->get();
+        $branchId = \App\Support\BranchContext::current();   // المخزون المنخفض لفرع العمل الحالي
+        $low = Inventory::with('part')->where('branch_id', $branchId)->whereRaw('on_hand - reserved <= low_stock_at')->orderByRaw('on_hand - reserved')->limit(8)->get();
 
         return view('admin.dashboard', [
             'money' => $money,
@@ -52,7 +53,7 @@ class DashboardController extends Controller
             'profit' => $profit,
             'pendingTransfers' => Order::where('status', 'pending_transfer')->count(),
             'newOrders' => Order::where('status', 'new')->count(),
-            'outOfStock' => Inventory::whereRaw('on_hand - reserved <= 0')->count(),
+            'outOfStock' => Inventory::where('branch_id', $branchId)->whereRaw('on_hand - reserved <= 0')->count(),
             'statusCounts' => Order::selectRaw('status, count(*) c')->groupBy('status')->pluck('c', 'status'),
             'days' => $days, 'max' => $max, 'low' => $low,
             'recent' => Order::latest('placed_at')->limit(8)->get(),

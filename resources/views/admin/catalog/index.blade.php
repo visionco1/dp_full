@@ -3,7 +3,9 @@
 @section('heading', 'الكتالوج والتوافق')
 @section('actions')<a href="{{ route('admin.catalog.create') }}" class="h-11 px-4 rounded-xl bg-brand text-ink font-bold inline-flex items-center text-sm">+ قطعة جديدة</a>@endsection
 @section('content')
-<form method="get" class="flex gap-2 mb-4"><input name="q" value="{{ request('q') }}" placeholder="رقم القطعة أو الاسم" class="h-11 rounded-xl border px-4 flex-1"><button class="h-11 px-5 rounded-xl bg-ink text-white font-semibold">بحث</button></form>
+@include('admin.catalog._tabs')
+<form method="get" class="flex flex-wrap gap-2 mb-4"><input name="q" value="{{ request('q') }}" placeholder="رقم القطعة أو الاسم" class="h-11 rounded-xl border px-4 flex-1 min-w-[200px]">
+<select name="category" aria-label="القسم" class="h-11 rounded-xl border px-3"><option value="">كل الأقسام</option>@foreach ($categories as $c)<option value="{{ $c->id }}" @selected(request('category') == $c->id)>{{ $c->name_ar }}</option>@foreach ($c->children as $s)<option value="{{ $s->id }}" @selected(request('category') == $s->id)>&nbsp;&nbsp;— {{ $s->name_ar }}</option>@endforeach @endforeach</select><button class="h-11 px-5 rounded-xl bg-ink text-white font-semibold">بحث</button></form>
 <div class="bg-white rounded-2xl border border-line overflow-x-auto">
 <table class="w-full text-sm min-w-[720px]"><thead class="bg-paper text-xs text-neutral-600"><tr><th class="p-3 text-right">رقم القطعة</th><th class="p-3 text-right">الاسم</th><th class="p-3 text-right">القسم</th><th class="p-3">الدرجة</th><th class="p-3">السعر</th><th class="p-3">السيارات</th><th class="p-3"></th></tr></thead><tbody>
 @foreach ($parts as $p)

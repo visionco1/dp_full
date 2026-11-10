@@ -44,7 +44,7 @@ class CartService
     }
 
     /** إجماليات السلة. الأسعار شاملة الضريبة */
-    public function totals(iterable $lines): array
+    public function totals(iterable $lines, string $fulfillment = 'delivery'): array
     {
         $subtotal = 0.0;
         $ship = 0.0;
@@ -54,7 +54,7 @@ class CartService
             $ship += ($part->is_bulky ? $part->shipping_fee : 0) * $qty;
             $count += $qty;
         }
-        $shipping = $count ? Money::round((float) config('dp.base_shipping') + $ship) : 0.0;
+        $shipping = $count && $fulfillment !== 'pickup' ? Money::round((float) config('dp.base_shipping') + $ship) : 0.0;
         $subtotal = Money::round($subtotal);
         $total = Money::round($subtotal + $shipping);
         return [
@@ -67,7 +67,8 @@ class CartService
         ];
     }
 
-    public function summary(Cart $cart): array
+    /** ملخص السلة. التوفر لفرع الطلب الحالي (X-Branch-Id)، و fulfillment=pickup يلغي الشحن */
+    public function summary(Cart $cart, string $fulfillment = 'delivery'): array
     {
         $cart->load('items.part.inventory');
         $lines = [];
@@ -94,6 +95,7 @@ class CartService
                 'shipping_fee' => $p->is_bulky ? $p->shipping_fee : 0,
             ];
         }
-        return ['token' => $cart->token, 'items' => $items, 'totals' => $this->totals($lines), 'has_issues' => collect($items)->contains(fn ($i) => !$i['in_stock'])];
+        return ['token' => $cart->token, 'branch_id' => \App\Support\BranchContext::current(), 'fulfillment' => $fulfillment,
+            'items' => $items, 'totals' => $this->totals($lines, $fulfillment), 'has_issues' => collect($items)->contains(fn ($i) => !$i['in_stock'])];
     }
 }

@@ -31,6 +31,7 @@ tailwind.config = { theme: { extend: {
     ['admin.pos.index', 'نقطة البيع', 'pos.use', 'M3 4h18v12H3zM8 20h8M12 16v4'],
     ['admin.inventory.index', 'المخزون', 'inventory.view', 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10'],
     ['admin.catalog.index', 'الكتالوج والتوافق', 'catalog.manage', 'M4 5h16M4 12h16M4 19h10'],
+    ['admin.branches.index', 'الفروع', 'branches.manage', 'M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6'],
     ['admin.banners.index', 'البانرات والإعلانات', 'banners.manage', 'M3 5h18v10H3zM7 19h10M9 9l3 2-3 2z'],
     ['admin.faqs.index', 'الأسئلة الشائعة', 'support.manage', 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01'],
     ['admin.orders.index', 'الطلبات', 'orders.view', 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4'],
@@ -47,6 +48,26 @@ tailwind.config = { theme: { extend: {
       </a>
       <span class="lg:hidden text-xs text-white/70">{{ $u->name }}</span>
     </div>
+    {{-- فرع العمل الحالي: المخزون ونقطة البيع يعملان عليه --}}
+    @php
+      $curBranch = \App\Models\Branch::find(\App\Support\BranchContext::current());
+      $allBranches = $u->branch_id ? collect() : \App\Models\Branch::active()->get(['id', 'name']);
+    @endphp
+    @if ($curBranch)
+    <div class="px-4 pb-3">
+      @if ($allBranches->count() > 1)
+        <form method="post" action="{{ route('admin.branch.switch') }}">@csrf
+          <label class="block text-[11px] text-white/60 mb-1">فرع العمل</label>
+          <select name="branch_id" onchange="this.form.submit()" class="w-full h-10 rounded-lg bg-white/10 text-white text-sm px-2 border border-white/15" aria-label="فرع العمل">
+            @foreach ($allBranches as $ab)<option value="{{ $ab->id }}" class="text-ink" @selected($ab->id === $curBranch->id)>{{ $ab->name }}</option>@endforeach
+          </select>
+        </form>
+      @else
+        <div class="text-[11px] text-white/60">فرع العمل</div>
+        <div class="text-sm font-semibold">{{ $curBranch->name }}</div>
+      @endif
+    </div>
+    @endif
     <nav class="px-3 pb-3 flex lg:flex-col gap-1 overflow-x-auto" aria-label="القائمة الرئيسية">
       @foreach ($nav as [$route, $label, $perm, $icon])
         @can($perm)

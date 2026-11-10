@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Part;
 use App\Models\User;
+use App\Support\BranchContext;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -29,7 +31,8 @@ class OrderService
 
     /**
      * @param array<int,array{part_id:int,qty:int}> $lines
-     * $opts: channel(app|web|pos), payment(cod|bank|cash|card), customer{name,phone}, address?, user?, staff?
+     * $opts: channel(app|web|pos), payment(cod|bank|cash|card), customer{name,phone}, address?, user?, staff?,
+     *        branch_id? (الافتراضي: الفرع الحالي), fulfillment? (delivery|pickup — نقطة البيع دائماً pickup)
      */
     public function place(array $lines, array $opts): Order
     {
@@ -38,8 +41,19 @@ class OrderService
         $isPos = $channel === 'pos';
         $user = $opts['user'] ?? null;
         $staff = $opts['staff'] ?? null;
+        $fulfillment = $isPos ? 'pickup' : ($opts['fulfillment'] ?? 'delivery');
+        $branch = Branch::find($opts['branch_id'] ?? BranchContext::current());
+        if (!$branch || !$branch->active) {
+            throw ValidationException::withMessages(['branch_id' => 'الفرع غير متاح']);
+        }
+        if (!$isPos && !$branch->supports($fulfillment)) {
+            throw ValidationException::withMessages(['fulfillment' => $fulfillment === 'pickup' ? "فرع {$branch->name} لا يدعم الاستلام من الفرع" : "فرع {$branch->name} لا يدعم التوصيل"]);
+        }
+        if (!$isPos && $fulfillment === 'delivery' && empty($opts['address'])) {
+            throw ValidationException::withMessages(['address' => 'أدخل عنوان التوصيل']);
+        }
 
-        return DB::transaction(function () use ($lines, $opts, $channel, $pay, $isPos, $user, $staff) {
+        return DB::transaction(function () use ($lines, $opts, $channel, $pay, $isPos, $user, $staff, $fulfillment, $branch) {
             $parts = Part::with('inventory')->whereIn('id', collect($lines)->pluck('part_id'))->where('active', true)->get()->keyBy('id');
             $pairs = [];
             foreach ($lines as $l) {
@@ -50,7 +64,7 @@ class OrderService
                 throw ValidationException::withMessages(['items' => 'السلة فارغة']);
             }
             $t = $this->carts->totals($pairs);
-            if ($isPos) {   // البيع المباشر بدون شحن
+            if ($fulfillment === 'pickup') {   // البيع المباشر والاستلام من الفرع بدون شحن
                 $t['shipping'] = 0.0;
                 $t['total'] = $t['subtotal'];
                 $t['vat'] = Money::vatIn($t['total']);
@@ -59,6 +73,8 @@ class OrderService
             $order = Order::create([
                 'number' => $this->nextNumber($isPos ? 'POS' : 'DM'),
                 'user_id' => $user?->id,
+                'branch_id' => $branch->id,
+                'fulfillment' => $fulfillment,
                 'customer_name' => $opts['customer']['name'] ?? 'عميل المعرض',
                 'customer_phone' => $opts['customer']['phone'] ?? '',
                 'channel' => $channel,
@@ -66,7 +82,7 @@ class OrderService
                 'payment_method' => $pay,
                 'payment_status' => $isPos ? 'paid' : ($pay === 'bank' ? 'pending' : 'unpaid'),
                 'subtotal' => $t['subtotal'], 'vat' => $t['vat'], 'shipping' => $t['shipping'], 'total' => $t['total'],
-                'address' => $opts['address'] ?? null,
+                'address' => $fulfillment === 'delivery' ? ($opts['address'] ?? null) : null,
                 'created_by' => $staff?->id,
                 'placed_at' => now(),
             ]);
@@ -78,13 +94,15 @@ class OrderService
                     'shipping_fee' => $part->is_bulky ? $part->shipping_fee : 0,
                     'qty' => $qty, 'line_total' => Money::round($part->price * $qty),
                 ]);
-                $isPos ? $this->stock->sellNow($part, $qty, $order->number, $staff?->id) : $this->stock->reserve($part, $qty);
+                $isPos ? $this->stock->sellNow($part, $qty, $order->number, $staff?->id, $branch->id) : $this->stock->reserve($part, $qty, $branch->id);
             }
             $this->event($order, $order->status, $isPos ? 'بيع من المعرض' : 'تم استلام الطلب', $staff);
 
             if ($user) {
                 $this->notify->push($user, 'order', 'تم استلام طلبك '.$order->number,
-                    $pay === 'bank' ? 'حوّل المبلغ وأرفق الإيصال ليراجعه فريقنا.' : 'سنجهّز طلبك ونشحنه قريباً.', ['order' => $order->number]);
+                    $pay === 'bank' ? 'حوّل المبلغ وأرفق الإيصال ليراجعه فريقنا.'
+                        : ($fulfillment === 'pickup' ? "سنجهّز طلبك في {$branch->name} ونبلغك عندما يكون جاهزاً للاستلام." : 'سنجهّز طلبك ونشحنه قريباً.'),
+                    ['order' => $order->number]);
             }
             return $order->load('items');
         });
@@ -151,15 +169,14 @@ class OrderService
 
     public function ship(Order $o, User $by, ?string $waybill = null): Order
     {
+        if ($o->isPickup()) {
+            throw ValidationException::withMessages(['order' => 'طلب استلام من الفرع — استخدم "جاهز للاستلام"']);
+        }
         if ($o->status !== 'processing') {
             throw ValidationException::withMessages(['order' => 'يجب أن يكون الطلب قيد التجهيز قبل الشحن']);
         }
         DB::transaction(function () use ($o, $by, $waybill) {
-            foreach ($o->items as $it) {
-                if ($it->part_id) {
-                    $this->stock->commitReserved($it->part_id, $it->qty, $o->number, $by->id);
-                }
-            }
+            $this->commitItems($o, $by);
             $o->update(['status' => 'shipped', 'waybill_no' => $waybill ?: $o->waybill_no ?: (string) random_int(2900000000, 2999999999)]);
             $this->event($o, 'shipped', 'تم تسليم الشحنة لشركة الشحن', $by);
         });
@@ -167,26 +184,45 @@ class OrderService
         return $o;
     }
 
+    /** طلب الاستلام: جاهز في الفرع (القطع تبقى محجوزة حتى يستلمها العميل) */
+    public function markReady(Order $o, User $by): Order
+    {
+        if (!$o->isPickup() || $o->status !== 'processing') {
+            throw ValidationException::withMessages(['order' => 'الطلب ليس طلب استلام قيد التجهيز']);
+        }
+        $o->update(['status' => 'ready']);
+        $branch = $o->branch;
+        $this->event($o, 'ready', 'جاهز للاستلام من '.($branch->name ?? 'الفرع'), $by);
+        $this->tell($o, 'طلبك جاهز للاستلام', 'من '.($branch ? trim($branch->name.' — '.$branch->address, ' —') : 'الفرع').'. أحضر رقم الطلب عند الاستلام.');
+        return $o;
+    }
+
     public function complete(Order $o, User $by): Order
     {
-        if ($o->status !== 'shipped') {
-            throw ValidationException::withMessages(['order' => 'الطلب لم يُشحن بعد']);
+        $expected = $o->isPickup() ? 'ready' : 'shipped';
+        if ($o->status !== $expected) {
+            throw ValidationException::withMessages(['order' => $o->isPickup() ? 'الطلب ليس جاهزاً للاستلام بعد' : 'الطلب لم يُشحن بعد']);
         }
-        $o->update(['status' => 'completed', 'payment_status' => 'paid']);
-        $this->event($o, 'completed', 'تم التسليم', $by);
+        DB::transaction(function () use ($o, $by) {
+            if ($o->isPickup()) {   // القطع تخرج من مخزون الفرع عند تسليمها للعميل
+                $this->commitItems($o, $by);
+            }
+            $o->update(['status' => 'completed', 'payment_status' => 'paid']);
+        });
+        $this->event($o, 'completed', $o->isPickup() ? 'استلمه العميل من الفرع' : 'تم التسليم', $by);
         $this->tell($o, 'تم تسليم طلبك', 'شكراً لتسوقك من دفع المحركات.');
         return $o;
     }
 
     public function cancel(Order $o, ?User $by, string $reason): Order
     {
-        if (!in_array($o->status, ['new', 'pending_transfer', 'processing'], true)) {
+        if (!in_array($o->status, ['new', 'pending_transfer', 'processing', 'ready'], true)) {
             throw ValidationException::withMessages(['order' => 'لا يمكن إلغاء الطلب في حالته الحالية']);
         }
         DB::transaction(function () use ($o, $by, $reason) {
             foreach ($o->items as $it) {
                 if ($it->part_id) {
-                    $this->stock->release($it->part_id, $it->qty);
+                    $this->stock->release($it->part_id, $it->qty, $o->branch_id);
                 }
             }
             $o->update(['status' => 'cancelled', 'cancel_reason' => $reason,
@@ -195,5 +231,14 @@ class OrderService
         });
         $this->tell($o, 'تم إلغاء طلبك', $reason);
         return $o;
+    }
+
+    private function commitItems(Order $o, User $by): void
+    {
+        foreach ($o->items as $it) {
+            if ($it->part_id) {
+                $this->stock->commitReserved($it->part_id, $it->qty, $o->number, $by->id, $o->branch_id);
+            }
+        }
     }
 }

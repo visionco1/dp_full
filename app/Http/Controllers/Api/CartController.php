@@ -14,7 +14,7 @@ class CartController extends Controller
 
     public function show(Request $r)
     {
-        return $this->carts->summary($this->carts->resolve($r));
+        return $this->carts->summary($this->carts->resolve($r), $r->query('fulfillment') === 'pickup' ? 'pickup' : 'delivery');
     }
 
     public function add(Request $r)

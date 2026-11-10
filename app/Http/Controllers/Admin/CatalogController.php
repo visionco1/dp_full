@@ -16,12 +16,15 @@ class CatalogController extends Controller
 {
     public function index(Request $r)
     {
-        return view('admin.catalog.index', ['parts' => Part::with('category', 'inventory')->withCount('fitments')->search($r->query('q'))->orderBy('sku')->paginate(25)->withQueryString()]);
+        $parts = Part::with('category', 'inventory')->withCount('fitments')->search($r->query('q'))
+            ->inCategory($r->input('category'))
+            ->orderBy('sku')->paginate(25)->withQueryString();
+        return view('admin.catalog.index', ['parts' => $parts, 'categories' => Category::roots()->with('children')->get()]);
     }
 
     public function create()
     {
-        return view('admin.catalog.form', ['part' => new Part(['grade' => 'oem', 'active' => true]), 'categories' => Category::orderBy('sort')->get(), 'makes' => collect()]);
+        return view('admin.catalog.form', ['part' => new Part(['grade' => 'oem', 'active' => true]), 'categories' => Category::roots()->with('children')->get(), 'makes' => collect()]);
     }
 
     private function rules(?Part $part): array
@@ -49,7 +52,7 @@ class CatalogController extends Controller
     public function edit(Part $part)
     {
         $part->load('fitments.carModel.make');
-        return view('admin.catalog.form', ['part' => $part, 'categories' => Category::orderBy('sort')->get(), 'makes' => Make::with('models')->orderBy('name_ar')->get()]);
+        return view('admin.catalog.form', ['part' => $part, 'categories' => Category::roots()->with('children')->get(), 'makes' => Make::with('models')->orderBy('name_ar')->get()]);
     }
 
     public function update(Request $r, Part $part)

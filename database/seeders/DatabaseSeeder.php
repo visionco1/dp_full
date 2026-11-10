@@ -108,6 +108,6 @@ class DatabaseSeeder extends Seeder
             $o->events()->create(['status' => $st, 'note' => 'بيانات تجريبية']);
         }
 
-        $this->call([DemoCatalogSeeder::class, BannerSeeder::class, FaqSeeder::class]);
+        $this->call([DemoCatalogSeeder::class, BranchSeeder::class, BannerSeeder::class, FaqSeeder::class]);
     }
 }

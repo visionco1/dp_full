@@ -53,7 +53,7 @@ class RoleController extends Controller
 
     public function storeStaff(Request $r)
     {
-        $d = $r->validate(['name' => 'required|string|max:80', 'email' => 'required|email|unique:users,email', 'password' => 'required|string|min:8', 'role_id' => 'required|exists:roles,id']);
+        $d = $r->validate(['name' => 'required|string|max:80', 'email' => 'required|email|unique:users,email', 'password' => 'required|string|min:8', 'role_id' => 'required|exists:roles,id', 'branch_id' => 'nullable|exists:branches,id']);
         User::create($d + ['is_staff' => true, 'phone_verified_at' => now()]);
         return back()->with('ok', 'تمت إضافة الموظف');
     }
@@ -62,7 +62,8 @@ class RoleController extends Controller
     {
         abort_unless($user->is_staff, 404);
         $d = $r->validate(['name' => 'required|string|max:80', 'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => 'nullable|string|min:8', 'role_id' => 'required|exists:roles,id', 'active' => 'nullable|boolean']);
+            'password' => 'nullable|string|min:8', 'role_id' => 'required|exists:roles,id', 'branch_id' => 'nullable|exists:branches,id', 'active' => 'nullable|boolean']);
+        $d['branch_id'] = $d['branch_id'] ?? null;
         $active = $r->boolean('active');
         $adminRole = Role::where('slug', 'admin')->first();
         $losesAdmin = $user->role_id === $adminRole?->id && ($d['role_id'] != $adminRole->id || !$active);

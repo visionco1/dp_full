@@ -41,14 +41,20 @@ class ReportController extends Controller
 
         switch ($type) {
             case 'sales':
+                $bn = \App\Models\Branch::pluck('name', 'id');
                 $rows = Order::whereBetween('placed_at', [$from, $to])->orderBy('placed_at')->cursor()->map(fn ($o) => [
-                    $o->number, $o->placed_at->format('Y-m-d H:i'), $channels[$o->channel] ?? $o->channel, $labels[$o->status] ?? $o->status,
-                    $o->payment_method, $o->customer_name, $ph($o->customer_phone), $o->subtotal, $o->shipping, $o->vat, $o->total]);
-                return $io->download($name, ['رقم الطلب', 'التاريخ', 'القناة', 'الحالة', 'الدفع', 'العميل', 'الجوال', 'المنتجات', 'الشحن', 'الضريبة المضمّنة', 'الإجمالي'], $rows, $fmt);
+                    $o->number, $o->placed_at->format('Y-m-d H:i'), $channels[$o->channel] ?? $o->channel, $bn[$o->branch_id] ?? '', Order::FULFILLMENT[$o->fulfillment] ?? $o->fulfillment,
+                    $labels[$o->status] ?? $o->status, $o->payment_method, $o->customer_name, $ph($o->customer_phone), $o->subtotal, $o->shipping, $o->vat, $o->total]);
+                return $io->download($name, ['رقم الطلب', 'التاريخ', 'القناة', 'الفرع', 'الاستلام', 'الحالة', 'الدفع', 'العميل', 'الجوال', 'المنتجات', 'الشحن', 'الضريبة المضمّنة', 'الإجمالي'], $rows, $fmt);
             case 'inventory':
-                $head = ['رقم القطعة', 'الاسم', 'الكمية الفعلية', 'المحجوز', 'المتاح', 'السعر'] + ($cost ? [6 => 'التكلفة'] : []);
-                $rows = Part::with('inventory')->orderBy('sku')->get()->map(fn ($p) => array_merge(
-                    [$p->sku, $p->name_ar, $p->inventory->on_hand ?? 0, $p->inventory->reserved ?? 0, $p->available, $p->price], $cost ? [$p->cost] : []));
+                // كل الفروع: الإجمالي + عمود متاح لكل فرع
+                $branches = \App\Models\Branch::active()->get(['id', 'name']);
+                $head = array_merge(['رقم القطعة', 'الاسم', 'الكمية الفعلية (كل الفروع)', 'المحجوز', 'المتاح', 'السعر'], $cost ? ['التكلفة'] : [], $branches->map(fn ($b) => 'متاح: '.$b->name)->all());
+                $rows = Part::with('inventories')->orderBy('sku')->get()->map(function ($p) use ($cost, $branches) {
+                    $by = $p->inventories->keyBy('branch_id');
+                    return array_merge([$p->sku, $p->name_ar, $p->inventories->sum('on_hand'), $p->inventories->sum('reserved'), $p->inventories->sum(fn ($i) => $i->available), $p->price],
+                        $cost ? [$p->cost] : [], $branches->map(fn ($b) => $by[$b->id]?->available ?? 0)->all());
+                });
                 return $io->download($name, $head, $rows, $fmt);
             case 'customers':
                 $rows = User::where('is_staff', false)->withCount('orders')->withSum('orders', 'total')->orderBy('id')->get()->map(fn ($u) => [

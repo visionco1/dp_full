@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Category;
+use App\Models\Inventory;
+use App\Support\BranchContext;
 use App\Models\Part;
 use App\Services\InventoryService;
 use App\Services\TabularIO;
@@ -15,10 +18,8 @@ class InventoryController extends Controller
 {
     public function index(Request $r)
     {
-        $q = Part::with(['inventory', 'category'])->search($r->query('q'));
-        if ($r->filled('category')) {
-            $q->where('category_id', $r->query('category'));
-        }
+        $branchId = BranchContext::current();
+        $q = Part::with(['inventory', 'category', 'inventories'])->search($r->query('q'))->inCategory($r->query('category'));
         match ($r->query('status')) {
             'low' => $q->whereHas('inventory', fn ($w) => $w->whereRaw('on_hand - reserved > 0 AND on_hand - reserved <= low_stock_at')),
             'out' => $q->where(fn ($w) => $w->whereDoesntHave('inventory')->orWhereHas('inventory', fn ($i) => $i->whereRaw('on_hand - reserved <= 0'))),
@@ -26,14 +27,17 @@ class InventoryController extends Controller
         };
         return view('admin.inventory.index', [
             'parts' => $q->orderBy('sku')->paginate(25)->withQueryString(),
-            'categories' => Category::orderBy('sort')->get(),
+            'categories' => Category::roots()->with('children')->get(),
+            'branch' => Branch::find($branchId),
+            'branches' => Branch::active()->get(['id', 'name', 'code']),
+            'canTransfer' => auth()->user()->hasPermission('branches.manage'),
             'canCost' => auth()->user()->hasPermission('inventory.cost'),
             'canEdit' => auth()->user()->hasPermission('inventory.edit'),
             'canImport' => auth()->user()->hasPermission('inventory.import'),
             'stats' => [
                 'total' => Part::count(),
-                'out' => \App\Models\Inventory::whereRaw('on_hand - reserved <= 0')->count(),
-                'low' => \App\Models\Inventory::whereRaw('on_hand - reserved > 0 AND on_hand - reserved <= low_stock_at')->count(),
+                'out' => Part::count() - Inventory::where('branch_id', $branchId)->whereRaw('on_hand - reserved > 0')->count(),
+                'low' => Inventory::where('branch_id', $branchId)->whereRaw('on_hand - reserved > 0 AND on_hand - reserved <= low_stock_at')->count(),
             ],
         ]);
     }
@@ -59,13 +63,18 @@ class InventoryController extends Controller
     public function export(Request $r, TabularIO $io)
     {
         $cost = $r->user()->hasPermission('inventory.cost');
-        $head = ['رقم القطعة', 'الاسم', 'القسم', 'الدرجة', 'الكمية الفعلية', 'المحجوز', 'المتاح', 'السعر شامل الضريبة'] + ($cost ? [8 => 'التكلفة'] : []);
-        $rows = Part::with('inventory', 'category')->orderBy('sku')->get()->map(function ($p) use ($cost) {
+        // الفرع الحالي + عمود متاح لكل فرع
+        $branches = Branch::active()->get(['id', 'name', 'code']);
+        $current = Branch::find(BranchContext::current());
+        $head = array_merge(['رقم القطعة', 'الاسم', 'القسم', 'الدرجة', 'الكمية الفعلية', 'المحجوز', 'المتاح', 'السعر شامل الضريبة'], $cost ? ['التكلفة'] : [],
+            $branches->map(fn ($b) => 'متاح: '.$b->name)->all());
+        $rows = Part::with('inventory', 'category', 'inventories')->orderBy('sku')->get()->map(function ($p) use ($cost, $branches) {
             $i = $p->inventory;
             $row = [$p->sku, $p->name_ar.($p->side ? ($p->side === 'R' ? ' يمين' : ' يسار') : ''), $p->category?->name_ar, \App\Http\Presenter::GRADES[$p->grade] ?? $p->grade, $i->on_hand ?? 0, $i->reserved ?? 0, $p->available, $p->price];
-            return $cost ? array_merge($row, [$p->cost]) : $row;
+            $byBranch = $p->inventories->keyBy('branch_id');
+            return array_merge($row, $cost ? [$p->cost] : [], $branches->map(fn ($b) => $byBranch[$b->id]?->available ?? 0)->all());
         });
-        return $io->download('inventory-'.now()->format('Ymd'), $head, $rows, $r->query('format') === 'csv' ? 'csv' : 'xlsx');
+        return $io->download('inventory-'.strtolower($current->code ?? 'all').'-'.now()->format('Ymd'), $head, $rows, $r->query('format') === 'csv' ? 'csv' : 'xlsx');
     }
 
     public function template(TabularIO $io)
@@ -121,9 +130,9 @@ class InventoryController extends Controller
         }
         $changes = array_values(array_filter($changes, fn ($c) => $c['old'] !== $c['new'] || ($c['price'] !== null && $c['price'] != $c['old_price']) || $c['cost'] !== null));
         $id = Str::random(24);
-        Cache::put('import:'.$id, ['user' => $r->user()->id, 'changes' => $changes], now()->addMinutes(30));
+        Cache::put('import:'.$id, ['user' => $r->user()->id, 'branch' => BranchContext::current(), 'changes' => $changes], now()->addMinutes(30));
         $alerts = \App\Models\StockAlert::whereNull('notified_at')->whereIn('part_id', collect($changes)->where('restock', true)->pluck('part_id'))->count();
-        return view('admin.inventory.import', ['id' => $id, 'changes' => $changes, 'errors' => $errors, 'alerts' => $alerts, 'file' => $r->file('file')->getClientOriginalName(), 'canCost' => $r->user()->hasPermission('inventory.cost')]);
+        return view('admin.inventory.import', ['id' => $id, 'changes' => $changes, 'errors' => $errors, 'alerts' => $alerts, 'file' => $r->file('file')->getClientOriginalName(), 'branch' => Branch::find(BranchContext::current()), 'canCost' => $r->user()->hasPermission('inventory.cost')]);
     }
 
     /** الخطوة 2: التطبيق (تخطّي الأسطر الخاطئة تلقائياً) */
@@ -133,7 +142,7 @@ class InventoryController extends Controller
         abort_unless($data && $data['user'] === $r->user()->id, 419, 'انتهت صلاحية المعاينة — ارفع الملف من جديد');
         $notified = 0;
         foreach ($data['changes'] as $c) {
-            $stock->setOnHand($c['part_id'], $c['new'], 'import', 'استيراد ملف', $r->user()->id);
+            $stock->setOnHand($c['part_id'], $c['new'], 'import', 'استيراد ملف', $r->user()->id, $data['branch'] ?? null);
             $upd = array_filter(['price' => $c['price'], 'cost' => $r->user()->hasPermission('inventory.cost') ? $c['cost'] : null], fn ($v) => $v !== null);
             $upd && Part::whereKey($c['part_id'])->update($upd);
         }

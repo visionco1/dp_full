@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BannerController;
+use App\Http\Controllers\Admin\BranchController as AdminBranchController;
 use App\Http\Controllers\Admin\CatalogController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FaqController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PosController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\TaxonomyController;
 use App\Http\Controllers\Web\ShopController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +23,7 @@ Route::name('shop.')->group(function () {
     Route::post('cart', [ShopController::class, 'cartAdd'])->name('cart.add');
     Route::patch('cart/{item}', [ShopController::class, 'cartUpdate'])->name('cart.update');
     Route::get('checkout', [ShopController::class, 'checkout'])->name('checkout');
+    Route::post('branch', [ShopController::class, 'setBranch'])->name('branch');
     Route::post('checkout', [ShopController::class, 'place'])->middleware('throttle:10,1')->name('checkout.place');
     Route::get('track', [ShopController::class, 'track'])->name('track');
     Route::post('track', [ShopController::class, 'trackFind'])->middleware('throttle:20,1')->name('track.find');
@@ -64,6 +67,22 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         Route::get('create', [CatalogController::class, 'create'])->name('create');
         Route::post('/', [CatalogController::class, 'store'])->name('store');
         Route::get('makes/{make}/models', [CatalogController::class, 'models'])->name('models');
+
+        // الأقسام
+        Route::get('categories', [TaxonomyController::class, 'categories'])->name('categories.index');
+        Route::post('categories', [TaxonomyController::class, 'storeCategory'])->name('categories.store');
+        Route::put('categories/{category}', [TaxonomyController::class, 'updateCategory'])->name('categories.update');
+        Route::delete('categories/{category}', [TaxonomyController::class, 'destroyCategory'])->name('categories.destroy');
+
+        // الماركات والموديلات
+        Route::get('makes', [TaxonomyController::class, 'makes'])->name('makes.index');
+        Route::post('makes', [TaxonomyController::class, 'storeMake'])->name('makes.store');
+        Route::put('makes/{make}', [TaxonomyController::class, 'updateMake'])->name('makes.update');
+        Route::delete('makes/{make}', [TaxonomyController::class, 'destroyMake'])->name('makes.destroy');
+        Route::post('makes/{make}/models', [TaxonomyController::class, 'storeModel'])->name('makes.models.store');
+        Route::put('models/{model}', [TaxonomyController::class, 'updateModel'])->name('makes.models.update');
+        Route::delete('models/{model}', [TaxonomyController::class, 'destroyModel'])->name('makes.models.destroy');
+
         Route::get('{part}/edit', [CatalogController::class, 'edit'])->name('edit');
         Route::put('{part}', [CatalogController::class, 'update'])->name('update');
         Route::delete('{part}', [CatalogController::class, 'destroy'])->name('destroy');
@@ -81,6 +100,17 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         Route::delete('{banner}', [BannerController::class, 'destroy'])->name('destroy');
     });
 
+    // الفروع
+    Route::post('branch', [AdminBranchController::class, 'switch'])->name('branch.switch');
+    Route::middleware('perm:branches.manage')->prefix('branches')->name('branches.')->group(function () {
+        Route::get('/', [AdminBranchController::class, 'index'])->name('index');
+        Route::post('/', [AdminBranchController::class, 'store'])->name('store');
+        Route::post('transfer', [AdminBranchController::class, 'transfer'])->name('transfer');
+        Route::put('{branch}', [AdminBranchController::class, 'update'])->name('update');
+        Route::post('{branch}/default', [AdminBranchController::class, 'makeDefault'])->name('default');
+        Route::delete('{branch}', [AdminBranchController::class, 'destroy'])->name('destroy');
+    });
+
     // الأسئلة الشائعة
     Route::middleware('perm:support.manage')->prefix('faqs')->name('faqs.')->group(function () {
         Route::get('/', [FaqController::class, 'index'])->name('index');
@@ -96,7 +126,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         Route::get('{order}', [OrderController::class, 'show'])->middleware('perm:orders.view')->name('show');
         Route::post('{order}/approve', [OrderController::class, 'approve'])->middleware('perm:orders.verify')->name('approve');
         Route::post('{order}/reject', [OrderController::class, 'reject'])->middleware('perm:orders.verify')->name('reject');
-        Route::post('{order}/{to}', [OrderController::class, 'transition'])->middleware('perm:orders.manage')->whereIn('to', ['processing', 'ship', 'complete', 'cancel'])->name('transition');
+        Route::post('{order}/{to}', [OrderController::class, 'transition'])->middleware('perm:orders.manage')->whereIn('to', ['processing', 'ready', 'ship', 'complete', 'cancel'])->name('transition');
     });
 
     // الصلاحيات

@@ -72,7 +72,7 @@ class SeedArt
     }
 
     /** أيقونة قسم 400×400 */
-    public static function category(string $slug, string $color): ?string
+    public static function category(string $slug, string $color, ?string $kind = null): ?string
     {
         if (!self::enabled()) {
             return null;
@@ -82,7 +82,7 @@ class SeedArt
         $im = self::canvas($w, $h);
         self::gradient($im, self::shade($color, 0.25), $color, true);
         imagefilledellipse($im, $w * $s / 2, $h * $s / 2, (int) ($w * $s * 0.78), (int) ($w * $s * 0.78), self::col($im, '#FFFFFF', 100));
-        self::motif($im, self::KINDS[$slug] ?? 'gear', $w * $s / 2, $h * $s / 2, $w * $s * 0.27, '#111111', $color);
+        self::motif($im, $kind ?? self::KINDS[$slug] ?? 'gear', $w * $s / 2, $h * $s / 2, $w * $s * 0.27, '#111111', $color);
         return self::save($im, $w, $h, 'categories/seed-'.$slug.'.jpg');
     }
 

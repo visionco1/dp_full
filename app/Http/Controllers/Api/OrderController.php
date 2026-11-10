@@ -20,8 +20,18 @@ class OrderController extends Controller
     public function checkout(Request $r)
     {
         $user = $r->user('sanctum');
+        $pickup = $r->input('fulfillment') === 'pickup';
         $d = $r->validate([
+            'fulfillment' => 'nullable|in:delivery,pickup',
+            'branch_id' => 'nullable|integer|exists:branches,id',   // بدونه: X-Branch-Id أو الفرع الرئيسي
             'payment_method' => 'required|in:cod,bank',
+            'save_address' => 'nullable|boolean',
+        ] + ($pickup ? [
+            // الاستلام من الفرع: لا عنوان — اسم وجوال المستلم (أو بيانات الحساب)
+            'contact' => 'nullable|array',
+            'contact.name' => [$user ? 'nullable' : 'required', 'string', 'max:80'],
+            'contact.phone' => [$user ? 'nullable' : 'required', 'string'],
+        ] : [
             'address_id' => 'nullable|integer',
             'address' => 'nullable|array',
             'address.name' => 'required_without:address_id|string|max:80',
@@ -29,10 +39,16 @@ class OrderController extends Controller
             'address.city' => 'required_without:address_id|string|max:60',
             'address.line' => 'required_without:address_id|string|max:200',
             'address.national_address' => ['nullable', 'regex:/^[A-Za-z]{4}\d{4}$/'],
-            'save_address' => 'nullable|boolean',
-        ], ['address.national_address.regex' => 'العنوان الوطني 4 حروف و4 أرقام مثل RNAA4021']);
+        ]), ['address.national_address.regex' => 'العنوان الوطني 4 حروف و4 أرقام مثل RNAA4021', 'contact.name.required' => 'أدخل اسم المستلم', 'contact.phone.required' => 'أدخل جوال المستلم']);
 
-        if (!empty($d['address_id'])) {
+        if ($pickup) {
+            $phone = $d['contact']['phone'] ?? $user?->phone;
+            $addr = null;
+            $customer = [
+                'name' => $d['contact']['name'] ?? $user?->name,
+                'phone' => Phone::normalize((string) $phone) ?? throw ValidationException::withMessages(['contact.phone' => 'برجاء إدخال رقم جوال صحيح (10 أرقام)']),
+            ];
+        } elseif (!empty($d['address_id'])) {
             abort_unless($user, 422, 'سجّل الدخول لاستخدام عنوان محفوظ');
             $a = Address::where('user_id', $user->id)->findOrFail($d['address_id']);
             $addr = $a->only(['name', 'phone', 'city', 'line', 'national_address']);
@@ -40,6 +56,7 @@ class OrderController extends Controller
             $addr = $d['address'];
             $addr['phone'] = Phone::normalize($addr['phone']) ?? throw ValidationException::withMessages(['address.phone' => 'برجاء إدخال رقم جوال صحيح (10 أرقام)']);
         }
+        $customer ??= ['name' => $addr['name'], 'phone' => $addr['phone']];
 
         $cart = $this->carts->resolve($r, false);
         if (!$cart || !$cart->items()->exists()) {
@@ -50,12 +67,14 @@ class OrderController extends Controller
         $order = $this->orders->place($lines, [
             'channel' => $r->header('X-Channel') === 'web' ? 'web' : 'app',
             'payment' => $d['payment_method'],
-            'customer' => ['name' => $addr['name'], 'phone' => $addr['phone']],
+            'customer' => $customer,
             'address' => $addr,
             'user' => $user,
+            'fulfillment' => $pickup ? 'pickup' : 'delivery',
+            'branch_id' => $d['branch_id'] ?? null,
         ]);
         $cart->items()->delete();
-        if ($user && $r->boolean('save_address') && empty($d['address_id'])) {
+        if ($addr && $user && $r->boolean('save_address') && empty($d['address_id'])) {
             $user->addresses()->create($addr + ['label' => 'عنوان جديد', 'is_default' => !$user->addresses()->exists()]);
         }
 
@@ -69,7 +88,7 @@ class OrderController extends Controller
     {
         $q = $r->user()->orders()->with('items', 'events')->orderByDesc('placed_at');
         if ($r->input('scope') === 'active') {
-            $q->whereIn('status', ['new', 'pending_transfer', 'processing', 'shipped']);
+            $q->whereIn('status', Order::OPEN);
         } elseif ($r->input('scope') === 'past') {
             $q->whereIn('status', ['completed', 'cancelled']);
         }
@@ -126,7 +145,7 @@ class OrderController extends Controller
     public function cancel(Request $r, string $number)
     {
         $o = $this->findOwned($r, $number);
-        abort_unless(in_array($o->status, ['new', 'pending_transfer'], true), 422, 'لا يمكن إلغاء الطلب بعد بدء التجهيز — تواصل مع الدعم');
+        abort_unless(in_array($o->status, Order::CUSTOMER_CANCELLABLE, true), 422, 'لا يمكن إلغاء الطلب بعد بدء التجهيز — تواصل مع الدعم');
         return ['order' => Presenter::order($this->orders->cancel($o, $r->user('sanctum'), 'ألغاه العميل'))];
     }
 

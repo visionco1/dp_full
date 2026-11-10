@@ -11,7 +11,22 @@ class Part extends Model
     protected $casts = ['is_bulky' => 'boolean', 'active' => 'boolean', 'price' => 'float', 'cost' => 'float', 'shipping_fee' => 'float'];
 
     public function category() { return $this->belongsTo(Category::class); }
-    public function inventory() { return $this->hasOne(Inventory::class); }
+    /** مخزون الفرع الحالي (BranchContext) — كل الكود القديم يقرأ من هنا */
+    public function inventory() { return $this->hasOne(Inventory::class)->where('inventories.branch_id', \App\Support\BranchContext::current()); }
+
+    /** مخزون كل الفروع */
+    public function inventories() { return $this->hasMany(Inventory::class); }
+
+    /** المتاح في كل فرع مفعّل: [{branch_id, name, city, available}] */
+    public function stockByBranch(): \Illuminate\Support\Collection
+    {
+        $rows = $this->inventories()->get()->keyBy('branch_id');
+        return Branch::active()->get()->map(fn ($b) => [
+            'branch_id' => $b->id, 'name' => $b->name, 'city' => $b->city,
+            'available' => $rows[$b->id]?->available ?? 0,
+            'pickup_enabled' => $b->pickup_enabled, 'delivery_enabled' => $b->delivery_enabled,
+        ])->values();
+    }
     public function fitments() { return $this->hasMany(PartFitment::class); }
     public function orderItemsExist(): bool { return OrderItem::where("part_id", $this->id)->exists(); }
 
@@ -30,6 +45,12 @@ class Part extends Model
                 $f->where('year_from', '<=', $year)->where('year_to', '>=', $year);
             }
         });
+    }
+
+    /** قطع قسم (id أو slug) — القسم الرئيسي يشمل قطع أقسامه الفرعية */
+    public function scopeInCategory(Builder $q, int|string|null $idOrSlug): Builder
+    {
+        return ($idOrSlug === null || $idOrSlug === '') ? $q : $q->whereIn('category_id', Category::idsWithChildren($idOrSlug));
     }
 
     public function scopeSearch(Builder $q, ?string $term): Builder

@@ -49,7 +49,7 @@ class HomeController extends Controller
             'banners' => Banner::live('hero')->get()->map(fn ($b) => Presenter::banner($b, $categories))->values(),
             'ads' => Banner::live()->whereIn('placement', ['strip', 'side', 'topbar'])->get()->map(fn ($b) => Presenter::banner($b, $categories))->values(),
             'search_suggestions' => $suggestions,
-            'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name_ar' => $c->name_ar, 'name_en' => $c->name_en, 'slug' => $c->slug, 'image' => $c->imageUrl()])->values(),
+            'categories' => CatalogController::categoryTree(),
             'suggested_products' => $suggested->map(fn ($p) => Presenter::part($p, $vehicle))->values(),
         ];
     }

@@ -12,6 +12,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->scoped(\App\Support\BranchContext::class);
         $this->app->bind(\App\Contracts\SmsGateway::class, fn () => match (config('dp.sms_driver')) {
             default => new \App\Services\LogSmsGateway(),
         });
@@ -26,7 +27,9 @@ class AppServiceProvider extends ServiceProvider
         // البانرات والإعلانات لكل صفحات المتجر (بدون كسر الموقع لو الجدول غير موجود بعد)
         \Illuminate\Support\Facades\View::composer('shop.*', function ($view) {
             $view->with('banners', once(fn () => rescue(fn () => \App\Models\Banner::live()->get()->groupBy('placement'), collect(), false)));
-            $view->with('shopCategories', once(fn () => rescue(fn () => \App\Models\Category::orderBy('sort')->orderBy('id')->get(['id', 'slug', 'name_ar']), collect(), false)));
+            $view->with('shopBranches', once(fn () => rescue(fn () => \App\Models\Branch::active()->get(['id', 'name', 'city']), collect(), false)));
+            $view->with('shopBranchId', \App\Support\BranchContext::current());
+            $view->with('shopCategories', once(fn () => rescue(fn () => \App\Models\Category::roots()->get(['id', 'slug', 'name_ar']), collect(), false)));
         });
 
         RateLimiter::for('otp', fn (Request $r) => [

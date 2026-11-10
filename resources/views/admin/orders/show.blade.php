@@ -15,6 +15,7 @@
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <span class="px-3 py-1 rounded-full bg-ink text-white text-sm font-bold">{{ $order->status_label }}</span>
         <span class="text-sm text-neutral-600">{{ $order->placed_at->format('Y-m-d H:i') }} · {{ ['app' => 'التطبيق', 'web' => 'الموقع', 'pos' => 'المعرض'][$order->channel] }}</span>
+        <span class="px-3 py-1 rounded-full text-sm font-semibold {{ $order->isPickup() ? 'bg-violet-100 text-violet-900' : 'bg-sky-100 text-sky-900' }}">{{ \App\Models\Order::FULFILLMENT[$order->fulfillment] ?? '' }} · {{ $order->branch?->name }}</span>
         @if ($order->waybill_no)<span class="text-sm">بوليصة: <b class="font-mono" dir="ltr">{{ $order->waybill_no }}</b></span>@endif
       </div>
       <table class="w-full text-sm"><thead class="text-xs text-neutral-500"><tr><th class="text-right py-1">القطعة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>
@@ -69,13 +70,17 @@
       <h2 class="font-bold">إجراءات</h2>
       <div class="flex flex-wrap gap-2 items-end">
         @if ($order->status === 'new')<form method="post" action="{{ route('admin.orders.transition', [$order, 'processing']) }}">@csrf<button class="h-11 px-5 rounded-xl bg-ink text-white font-semibold">بدء التجهيز</button></form>@endif
-        @if ($order->status === 'processing')
+        @if ($order->status === 'processing' && $order->isPickup())
+          <form method="post" action="{{ route('admin.orders.transition', [$order, 'ready']) }}">@csrf<button class="h-11 px-5 rounded-xl bg-violet-700 text-white font-semibold">جاهز للاستلام — أبلغ العميل</button></form>
+        @endif
+        @if ($order->status === 'ready')<form method="post" action="{{ route('admin.orders.transition', [$order, 'complete']) }}">@csrf<button class="h-11 px-5 rounded-xl bg-emerald-700 text-white font-semibold">استلمه العميل</button></form>@endif
+        @if ($order->status === 'processing' && !$order->isPickup())
           <form method="post" action="{{ route('admin.orders.transition', [$order, 'ship']) }}" class="flex gap-2 items-end">@csrf
             <label class="text-xs">رقم البوليصة (اختياري)<input name="waybill_no" dir="ltr" class="block h-11 rounded-xl border px-3 font-mono"></label>
             <button class="h-11 px-5 rounded-xl bg-ink text-white font-semibold">تم الشحن</button></form>
         @endif
         @if ($order->status === 'shipped')<form method="post" action="{{ route('admin.orders.transition', [$order, 'complete']) }}">@csrf<button class="h-11 px-5 rounded-xl bg-emerald-700 text-white font-semibold">تم التسليم</button></form>@endif
-        @if (in_array($order->status, ['new', 'pending_transfer', 'processing']))
+        @if (in_array($order->status, ['new', 'pending_transfer', 'processing', 'ready']))
           <form method="post" action="{{ route('admin.orders.transition', [$order, 'cancel']) }}" class="flex gap-2 items-end" onsubmit="return confirm('إلغاء الطلب وإرجاع الكميات للمخزون؟')">@csrf
             <label class="text-xs">سبب الإلغاء<input name="reason" required class="block h-11 rounded-xl border px-3"></label>
             <button class="h-11 px-5 rounded-xl border-2 border-red-700 text-red-800 font-semibold">إلغاء الطلب</button></form>
@@ -91,6 +96,7 @@
       <h2 class="font-bold mb-2">العميل</h2>
       <div>{{ $order->customer_name }}</div>
       <div class="font-mono" dir="ltr">{{ $unmask ? $order->customer_phone : \App\Support\Phone::mask($order->customer_phone) }}</div>
+      @if ($order->branch)<div class="pt-2"><b>{{ $order->isPickup() ? 'يستلم من' : 'يُشحن من' }}:</b> {{ $order->branch->name }} <span class="text-neutral-500">— {{ $order->branch->city }}</span></div>@endif
       @if ($a = $order->address)<div class="text-neutral-600 pt-2">{{ $a['city'] ?? '' }} — {{ $a['line'] ?? '' }}@if(!empty($a['national_address'])) <span class="font-mono" dir="ltr">({{ $a['national_address'] }})</span>@endif</div>@endif
       <div class="pt-2 text-neutral-600">الدفع: {{ ['cod' => 'عند الاستلام', 'bank' => 'تحويل بنكي', 'cash' => 'نقداً', 'card' => 'بطاقة'][$order->payment_method] }} — {{ ['unpaid' => 'غير مدفوع', 'pending' => 'بانتظار التحقق', 'paid' => 'مدفوع', 'rejected' => 'مرفوض'][$order->payment_status] }}</div>
       @if ($order->reject_reason)<div class="text-red-800">سبب الرفض: {{ $order->reject_reason }}</div>@endif

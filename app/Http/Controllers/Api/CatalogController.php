@@ -14,10 +14,44 @@ use Illuminate\Http\Request;
 
 class CatalogController extends Controller
 {
+    /** الأقسام الرئيسية ومع كل قسم subcategories. parts_count للرئيسي يشمل قطع أقسامه الفرعية (القطع المفعّلة فقط) */
+    public static function categoryTree(): \Illuminate\Support\Collection
+    {
+        $active = fn ($q) => $q->where('active', true);
+        $roots = Category::roots()->withCount(['parts' => $active])
+            ->with(['children' => fn ($q) => $q->withCount(['parts' => $active])])->get();
+        $roots->each(fn ($c) => $c->parts_count += $c->children->sum('parts_count'));
+        return $roots->map(fn ($c) => Presenter::category($c, true))->values();
+    }
+
     public function categories()
     {
-        return ['categories' => Category::orderBy('sort')->get(['id', 'slug', 'name_ar', 'name_en', 'image'])
-            ->map(fn ($c) => ['id' => $c->id, 'slug' => $c->slug, 'name_ar' => $c->name_ar, 'name_en' => $c->name_en, 'image' => $c->imageUrl()])];
+        return ['categories' => self::categoryTree()];
+    }
+
+    public function subcategories(Category $category)
+    {
+        $category->load(['children' => fn ($q) => $q->withCount(['parts' => fn ($w) => $w->where('active', true)])]);
+        return [
+            'category' => Presenter::category($category),
+            'subcategories' => $category->children->map(fn ($s) => Presenter::category($s))->values(),
+        ];
+    }
+
+    /** درجات القطع (الجودة) لفلاتر التطبيق */
+    public function grades()
+    {
+        $counts = Part::where('active', true)->selectRaw('grade, COUNT(*) as n')->groupBy('grade')->pluck('n', 'grade');
+        return ['grades' => collect(Presenter::GRADES)->map(fn ($label, $code) => [
+            'code' => $code,
+            'label_ar' => $label,
+            'label_en' => Presenter::GRADE_DETAILS[$code]['label_en'] ?? $code,
+            'description_ar' => Presenter::GRADE_DETAILS[$code]['description_ar'] ?? null,
+            'warranty_months' => Presenter::GRADE_DETAILS[$code]['warranty_months'] ?? null,
+            'color' => Presenter::GRADE_DETAILS[$code]['color'] ?? null,
+            'aliases' => array_keys(array_filter(Presenter::GRADE_ALIASES, fn ($v) => $v === $code)),
+            'parts_count' => (int) ($counts[$code] ?? 0),
+        ])->values()];
     }
 
     /** البانرات والإعلانات النشطة للتطبيق — ?placement=hero|strip|side|topbar */
@@ -50,15 +84,16 @@ class CatalogController extends Controller
 
     public function parts(Request $r)
     {
-        $r->validate(['per_page' => 'nullable|integer|min:1|max:50', 'grade' => 'nullable|in:oem,cert,first',
+        if (isset(Presenter::GRADE_ALIASES[$r->input('grade')])) {   // aftermarket → first ...
+            $r->merge(['grade' => Presenter::GRADE_ALIASES[$r->input('grade')]]);
+        }
+        $r->validate(['per_page' => 'nullable|integer|min:1|max:50', 'grade' => 'nullable|in:'.implode(',', array_keys(Presenter::GRADES)),
             'sort' => 'nullable|in:relevance,price_asc,price_desc,newest']);
         $vehicle = $this->vehicleFor($r);
 
-        $q = Part::with(['inventory', 'category', 'fitments'])->where('active', true)->search($r->input('q'));
-        if ($r->filled('category')) {
-            $c = $r->input('category');
-            $q->whereHas('category', fn ($w) => $w->where('slug', $c)->orWhere('id', is_numeric($c) ? $c : 0));
-        }
+        // category = قسم رئيسي (يشمل فروعه) أو فرعي — id أو slug. subcategory يضيّق داخله
+        $q = Part::with(['inventory', 'category', 'fitments'])->where('active', true)->search($r->input('q'))
+            ->inCategory($r->input('subcategory') ?: $r->input('category'));
         if ($r->filled('grade')) {
             $q->where('grade', $r->input('grade'));
         }

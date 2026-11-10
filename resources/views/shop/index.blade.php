@@ -24,6 +24,21 @@
   </section>
 @endif
 
+{{-- الأقسام الفرعية للقسم المختار --}}
+@php $root = $current ? ($current->parent ?? $current) : null; @endphp
+@if ($root && $root->children->isNotEmpty())
+  <nav class="mb-5" aria-label="الأقسام الفرعية">
+    <h1 class="font-kufi font-extrabold text-lg mb-3">{{ $root->name_ar }}</h1>
+    <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      <a href="{{ route('shop.index', array_merge(request()->except('category', 'page'), ['category' => $root->slug])) }}" class="shrink-0 h-10 px-4 inline-flex items-center rounded-full text-sm font-semibold {{ $current->id === $root->id ? 'bg-ink text-white' : 'bg-white border border-line' }}">الكل</a>
+      @foreach ($root->children as $s)
+        <a href="{{ route('shop.index', array_merge(request()->except('category', 'page'), ['category' => $s->slug])) }}" class="shrink-0 h-10 pl-4 pr-1 inline-flex items-center gap-2 rounded-full text-sm font-semibold {{ $current->id === $s->id ? 'bg-ink text-white' : 'bg-white border border-line hover:border-brand' }}">
+          @if ($s->image)<img src="{{ $s->imageUrl() }}" alt="" class="w-8 h-8 rounded-full object-cover">@else<span class="w-3"></span>@endif{{ $s->name_ar }}</a>
+      @endforeach
+    </div>
+  </nav>
+@endif
+
 <div class="grid lg:grid-cols-4 gap-6">
   <aside class="lg:col-span-1 space-y-4 self-start lg:sticky lg:top-32">
     <form method="get" class="bg-white rounded-2xl border border-line p-4 space-y-3" x-data="{ make: '{{ request('make') }}' }">
@@ -35,7 +50,7 @@
         <select x-show="make=='{{ $m->id }}'" x-cloak name="model" {{ request('make') == $m->id ? '' : 'disabled' }} :disabled="make!='{{ $m->id }}'" aria-label="الموديل" class="w-full h-11 rounded-xl border px-3"><option value="">الموديل</option>@foreach ($m->models as $mo)<option value="{{ $mo->id }}" @selected(request('model') == $mo->id)>{{ $mo->name_ar }}</option>@endforeach</select>
       @endforeach
       <input name="year" type="number" min="1990" max="2030" value="{{ request('year') }}" placeholder="سنة الصنع" class="h-11 rounded-xl border px-3 w-full">
-      <label class="block text-sm font-semibold">الفئة<select name="category" class="mt-1 w-full h-11 rounded-xl border px-3"><option value="">الكل</option>@foreach ($categories as $c)<option value="{{ $c->slug }}" @selected(request('category') === $c->slug)>{{ $c->name_ar }}</option>@endforeach</select></label>
+      <label class="block text-sm font-semibold">الفئة<select name="category" class="mt-1 w-full h-11 rounded-xl border px-3"><option value="">الكل</option>@foreach ($categories as $c)<option value="{{ $c->slug }}" @selected(request('category') === $c->slug)>{{ $c->name_ar }}</option>@foreach ($c->children as $s)<option value="{{ $s->slug }}" @selected(request('category') === $s->slug)>&nbsp;&nbsp;— {{ $s->name_ar }}</option>@endforeach @endforeach</select></label>
       <label class="block text-sm font-semibold">الجودة<select name="grade" class="mt-1 w-full h-11 rounded-xl border px-3"><option value="">الكل</option>@foreach ($grades as $k => $l)<option value="{{ $k }}" @selected(request('grade') === $k)>{{ $l }}</option>@endforeach</select></label>
       <label class="block text-sm font-semibold">الترتيب<select name="sort" class="mt-1 w-full h-11 rounded-xl border px-3"><option value="">الأنسب</option><option value="price_asc" @selected(request('sort') === 'price_asc')>الأقل سعراً</option><option value="price_desc" @selected(request('sort') === 'price_desc')>الأعلى سعراً</option><option value="newest" @selected(request('sort') === 'newest')>الأحدث</option></select></label>
       <label class="flex items-center gap-2 min-h-[44px] text-sm"><input type="checkbox" name="in_stock" value="1" class="w-5 h-5 accent-black" @checked(request('in_stock'))>المتوفر فقط</label>

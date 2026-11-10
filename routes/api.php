@@ -24,9 +24,13 @@ Route::prefix('v1')->group(function () {
 
     // الكتالوج (عام)
     Route::get('home', [HomeController::class, 'home']);
+    Route::get('branches', [\App\Http\Controllers\Api\BranchController::class, 'index']);
+    Route::get('branches/{branch}', [\App\Http\Controllers\Api\BranchController::class, 'show']);
     Route::get('support/faqs', [HomeController::class, 'faqs']);
     Route::get('banners', [CatalogController::class, 'banners']);
     Route::get('categories', [CatalogController::class, 'categories']);
+    Route::get('categories/{category}/subcategories', [CatalogController::class, 'subcategories']);
+    Route::get('grades', [CatalogController::class, 'grades']);
     Route::get('makes', [CatalogController::class, 'makes']);
     Route::get('makes/{make}/models', [CatalogController::class, 'models']);
     Route::get('parts', [CatalogController::class, 'parts']);
