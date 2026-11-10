@@ -130,10 +130,58 @@ class OrderController extends Controller
         return ['order' => Presenter::order($this->orders->cancel($o, $r->user('sanctum'), 'ألغاه العميل'))];
     }
 
-    /** الفاتورة الضريبية (HTML جاهز للطباعة/WebView) */
+    /**
+     * الفاتورة الضريبية.
+     * JSON عند إرسال Accept: application/json أو ?format=json (لشاشة الفاتورة النيتف)،
+     * و HTML جاهز للطباعة/WebView غير ذلك أو مع ?format=html.
+     */
     public function invoice(Request $r, string $number)
     {
-        $o = $this->findOwned($r, $number)->load('items');
+        $o = $this->findOwned($r, $number)->load('items', 'user');
+        $format = $r->query('format');
+        if ($format === 'json' || ($format !== 'html' && $r->wantsJson())) {
+            return ['invoice' => self::invoiceData($o, $r->input('phone', $r->query('phone')))];
+        }
         return response()->view('admin.print.invoice', ['orders' => collect([$o]), 'auto' => false]);
+    }
+
+    public static function invoiceData(Order $o, ?string $phone = null): array
+    {
+        $buyer = $o->user?->type === 'business' ? $o->user : null;
+        $htmlQuery = array_filter(['format' => 'html', 'phone' => $phone]);
+        return [
+            'invoice_number' => 'INV-'.preg_replace('/^DM-/i', '', $o->number),
+            'invoice_type' => $buyer?->vat_number ? 'tax_invoice' : 'simplified_tax_invoice',
+            'issue_date' => $o->placed_at->format('Y-m-d'),
+            'issue_datetime' => $o->placed_at->toIso8601String(),
+            'order_number' => $o->number,
+            'order_status' => $o->status,
+            'payment_method' => Presenter::PAYMENT_LABELS[$o->payment_method] ?? $o->payment_method,
+            'payment_method_code' => $o->payment_method,
+            'payment_status' => $o->payment_status,
+            'seller_name' => config('dp.seller_name'),
+            'seller_tax_number' => config('dp.seller_vat_number'),
+            'seller_cr_number' => config('dp.seller_cr_number'),
+            'customer_name' => $buyer?->business_name ?: $o->customer_name,
+            'customer_phone' => $o->customer_phone,
+            'customer_tax_number' => $buyer?->vat_number,
+            'customer_cr_number' => $buyer?->cr_number,
+            'items' => $o->items->map(fn ($i) => [
+                'name' => $i->name,
+                'part_number' => $i->sku,
+                'quantity' => (int) $i->qty,
+                'unit_price' => (float) $i->unit_price,
+                'total_price' => (float) $i->line_total,
+            ])->values(),
+            'shipping' => $o->shipping,
+            'vat_rate' => config('dp.vat_rate'),
+            'subtotal_before_vat' => round($o->total - $o->vat, 2),
+            'vat_amount' => $o->vat,
+            'grand_total' => $o->total,
+            'currency' => config('dp.currency'),
+            'prices_include_vat' => true,
+            'qr_code_data' => \App\Support\Zatca::forOrder($o),
+            'invoice_html_url' => url('/api/v1/orders/'.$o->number.'/invoice').'?'.http_build_query($htmlQuery),
+        ];
     }
 }

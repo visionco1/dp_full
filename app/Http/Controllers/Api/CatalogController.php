@@ -23,11 +23,9 @@ class CatalogController extends Controller
     public function banners(Request $r)
     {
         $r->validate(['placement' => 'nullable|in:'.implode(',', array_keys(\App\Models\Banner::PLACEMENTS))]);
-        return ['banners' => \App\Models\Banner::live($r->input('placement'))->get()->map(fn ($b) => [
-            'id' => $b->id, 'placement' => $b->placement, 'title' => $b->title, 'subtitle' => $b->subtitle,
-            'image' => $b->imageUrl(), 'bg_color' => $b->bg_color, 'button_text' => $b->button_text,
-            'link_url' => $b->link_url, 'click_url' => $b->link_url ? route('shop.banner', $b) : null,
-        ])->values()];
+        $cats = Category::all(['id', 'slug']);
+        return ['banners' => \App\Models\Banner::live($r->input('placement'))->get()
+            ->map(fn ($b) => \App\Http\Presenter::banner($b, $cats) + ['image' => $b->imageUrl()])->values()];
     }
 
     public function makes()

@@ -4,6 +4,7 @@ namespace App\Http;
 
 use App\Models\Address;
 use App\Models\AppNotification;
+use App\Models\Banner;
 use App\Models\Order;
 use App\Models\Part;
 use App\Models\User;
@@ -13,6 +14,39 @@ use App\Models\Vehicle;
 class Presenter
 {
     public const GRADES = ['oem' => 'أصلي وكالة', 'cert' => 'تجاري بديل معتمد', 'first' => 'درجة أولى'];
+    public const PAYMENT_LABELS = ['cod' => 'الدفع عند الاستلام', 'bank' => 'تحويل بنكي مباشر', 'cash' => 'نقداً', 'card' => 'بطاقة'];
+
+    /**
+     * بانر للتطبيق. action_type يُستنتج من الرابط:
+     * /?category=slug → category (action_id = id الفئة) · /parts/15 → product · /?q=.. → search · https://.. → url · بدون رابط → none
+     */
+    public static function banner(Banner $b, ?\Illuminate\Support\Collection $categories = null): array
+    {
+        [$type, $id] = ['none', null];
+        $url = (string) $b->link_url;
+        if ($url !== '') {
+            $path = parse_url($url, PHP_URL_PATH) ?: '/';
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+            if (preg_match('#^https?://#i', $url)) {
+                [$type, $id] = ['url', $url];
+            } elseif (preg_match('#^/parts/(\d+)#', $path, $m)) {
+                [$type, $id] = ['product', $m[1]];
+            } elseif (!empty($q['category'])) {
+                $cat = ($categories ?? \App\Models\Category::all(['id', 'slug']))->firstWhere('slug', $q['category']);
+                [$type, $id] = ['category', (string) ($cat->id ?? $q['category'])];
+            } elseif (!empty($q['q'])) {
+                [$type, $id] = ['search', $q['q']];
+            } else {
+                [$type, $id] = ['catalog', $url];   // صفحة الكتالوج مع فلاتر (grade, sort, in_stock...)
+            }
+        }
+        return [
+            'id' => $b->id, 'placement' => $b->placement, 'title' => $b->title, 'subtitle' => $b->subtitle,
+            'image_url' => $b->imageUrl(), 'bg_color' => $b->bg_color, 'button_text' => $b->button_text,
+            'action_type' => $type, 'action_id' => $id,
+            'link_url' => $b->link_url ?: null, 'click_url' => $b->link_url ? route('shop.banner', $b) : null,
+        ];
+    }
 
     public static function part(Part $p, ?Vehicle $vehicle = null, bool $detail = false): array
     {
@@ -109,7 +143,7 @@ class Presenter
             'placed_at' => $o->placed_at?->toIso8601String(),
             'payment' => [
                 'method' => $o->payment_method,
-                'method_label' => ['cod' => 'الدفع عند الاستلام', 'bank' => 'تحويل بنكي مباشر', 'cash' => 'نقداً', 'card' => 'بطاقة'][$o->payment_method] ?? $o->payment_method,
+                'method_label' => self::PAYMENT_LABELS[$o->payment_method] ?? $o->payment_method,
                 'status' => $o->payment_status,
                 'reject_reason' => $o->reject_reason,
             ],

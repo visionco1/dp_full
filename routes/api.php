@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\GarageController;
+use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OrderController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +23,8 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/otp/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:10,1');
 
     // الكتالوج (عام)
+    Route::get('home', [HomeController::class, 'home']);
+    Route::get('support/faqs', [HomeController::class, 'faqs']);
     Route::get('banners', [CatalogController::class, 'banners']);
     Route::get('categories', [CatalogController::class, 'categories']);
     Route::get('makes', [CatalogController::class, 'makes']);

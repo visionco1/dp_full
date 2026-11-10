@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\CatalogController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\PosController;
@@ -78,6 +79,14 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         Route::put('{banner}', [BannerController::class, 'update'])->name('update');
         Route::post('{banner}/toggle', [BannerController::class, 'toggle'])->name('toggle');
         Route::delete('{banner}', [BannerController::class, 'destroy'])->name('destroy');
+    });
+
+    // الأسئلة الشائعة
+    Route::middleware('perm:support.manage')->prefix('faqs')->name('faqs.')->group(function () {
+        Route::get('/', [FaqController::class, 'index'])->name('index');
+        Route::post('/', [FaqController::class, 'store'])->name('store');
+        Route::put('{faq}', [FaqController::class, 'update'])->name('update');
+        Route::delete('{faq}', [FaqController::class, 'destroy'])->name('destroy');
     });
 
     // الطلبات

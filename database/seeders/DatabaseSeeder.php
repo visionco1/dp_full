@@ -107,5 +107,7 @@ class DatabaseSeeder extends Seeder
             $o->items()->create(['part_id' => $parts['31500-5X00A']->id, 'sku' => '31500-5X00A', 'name' => 'بطارية 70 أمبير', 'unit_price' => $tot - 25, 'qty' => 1, 'line_total' => $tot - 25]);
             $o->events()->create(['status' => $st, 'note' => 'بيانات تجريبية']);
         }
+
+        $this->call([BannerSeeder::class, FaqSeeder::class]);
     }
 }

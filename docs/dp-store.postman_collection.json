@@ -107,6 +107,55 @@
       }
     },
     {
+      "name": "Home screen",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/home",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "home"
+          ]
+        },
+        "description": "عام. مع token: delivery_address و notification_count و active_vehicle، والقطع المقترحة متوافقة مع السيارة النشطة.\naction_type: category | product | search | catalog | url | none"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+              "if (j.suggested_products && j.suggested_products.length) pm.collectionVariables.set('part_id', j.suggested_products[0].id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Support FAQs",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/support/faqs",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "support",
+            "faqs"
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
       "name": "Auth",
       "description": "التسجيل والدخول عبر OTP",
       "item": [
@@ -1196,12 +1245,12 @@
           }
         },
         {
-          "name": "Invoice (HTML)",
+          "name": "Invoice (JSON + ZATCA QR)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/orders/{{number}}/invoice?phone={{phone}}",
+              "raw": "{{base_url}}/orders/{{number}}/invoice?format=json&phone={{phone}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -1211,6 +1260,42 @@
                 "invoice"
               ],
               "query": [
+                {
+                  "key": "format",
+                  "value": "json",
+                  "disabled": false
+                },
+                {
+                  "key": "phone",
+                  "value": "{{phone}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "JSON مع Accept: application/json أو ?format=json. qr_code_data = TLV Base64 حسب هيئة الزكاة (المرحلة الأولى)."
+          }
+        },
+        {
+          "name": "Invoice (HTML / WebView)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/{{number}}/invoice?format=html&phone={{phone}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{number}}",
+                "invoice"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "html",
+                  "disabled": false
+                },
                 {
                   "key": "phone",
                   "value": "{{phone}}",

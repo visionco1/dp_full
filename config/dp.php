@@ -6,6 +6,18 @@ return [
     'currency' => 'SAR',
     'seller_vat_number' => env('DP_SELLER_VAT', '[الرقم الضريبي]'),
     'seller_name' => 'دفع المحركات — Engine Power & More',
+    'seller_cr_number' => env('DP_SELLER_CR', '[رقم السجل التجاري]'),
+
+    // اقتراحات البحث في الصفحة الرئيسية للتطبيق (تُكمَّل تلقائياً بالأكثر طلباً)
+    'search_suggestions' => ['فلتر زيت', 'فحمات فرامل', 'بواجي', 'بطارية', 'مساعدات'],
+
+    // بيانات التواصل في شاشة الدعم
+    'support' => [
+        'phone' => env('DP_SUPPORT_PHONE'),
+        'whatsapp' => env('DP_SUPPORT_WHATSAPP'),
+        'email' => env('DP_SUPPORT_EMAIL'),
+        'hours' => env('DP_SUPPORT_HOURS', 'السبت – الخميس، 9 صباحاً – 10 مساءً'),
+    ],
 
     'otp' => [
         'length' => 4,
@@ -47,6 +59,7 @@ return [
         'inventory.import' => 'استيراد Excel/CSV',
         'catalog.manage' => 'إدارة القطع والتوافق',
         'banners.manage' => 'إدارة البانرات والإعلانات',
+        'support.manage' => 'إدارة الأسئلة الشائعة',
         'orders.view' => 'عرض الطلبات',
         'orders.manage' => 'تغيير حالة الطلب والإلغاء',
         'orders.verify' => 'اعتماد/رفض التحويل البنكي',

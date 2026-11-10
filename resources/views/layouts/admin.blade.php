@@ -32,6 +32,7 @@ tailwind.config = { theme: { extend: {
     ['admin.inventory.index', 'المخزون', 'inventory.view', 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10'],
     ['admin.catalog.index', 'الكتالوج والتوافق', 'catalog.manage', 'M4 5h16M4 12h16M4 19h10'],
     ['admin.banners.index', 'البانرات والإعلانات', 'banners.manage', 'M3 5h18v10H3zM7 19h10M9 9l3 2-3 2z'],
+    ['admin.faqs.index', 'الأسئلة الشائعة', 'support.manage', 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01'],
     ['admin.orders.index', 'الطلبات', 'orders.view', 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4'],
     ['admin.roles.index', 'الموظفون والصلاحيات', 'roles.manage', 'M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0'],
     ['admin.reports.index', 'التقارير والتصدير', 'reports.export', 'M12 3v12M7 10l5 5 5-5M5 21h14'],
