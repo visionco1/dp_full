@@ -16,7 +16,8 @@ class CatalogController extends Controller
 {
     public function categories()
     {
-        return ['categories' => Category::orderBy('sort')->get(['id', 'slug', 'name_ar', 'name_en'])];
+        return ['categories' => Category::orderBy('sort')->get(['id', 'slug', 'name_ar', 'name_en', 'image'])
+            ->map(fn ($c) => ['id' => $c->id, 'slug' => $c->slug, 'name_ar' => $c->name_ar, 'name_en' => $c->name_en, 'image' => $c->imageUrl()])];
     }
 
     /** البانرات والإعلانات النشطة للتطبيق — ?placement=hero|strip|side|topbar */

@@ -19,7 +19,7 @@ class HomeController extends Controller
         $user = $r->user('sanctum');
         $vehicle = $user?->vehicles()->with('carModel.make')->where('is_active', true)->first();
         $address = $user?->addresses()->orderByDesc('is_default')->orderBy('id')->first();
-        $categories = Category::orderBy('sort')->orderBy('id')->get(['id', 'slug', 'name_ar', 'name_en']);
+        $categories = Category::orderBy('sort')->orderBy('id')->get(['id', 'slug', 'name_ar', 'name_en', 'image']);
 
         // قطع مقترحة: المتوافقة مع السيارة النشطة أولاً، وإلا الأكثر طلباً، والمتوفرة فقط
         $popularIds = OrderItem::whereNotNull('part_id')->where('created_at', '>=', now()->subDays(90))
@@ -49,7 +49,7 @@ class HomeController extends Controller
             'banners' => Banner::live('hero')->get()->map(fn ($b) => Presenter::banner($b, $categories))->values(),
             'ads' => Banner::live()->whereIn('placement', ['strip', 'side', 'topbar'])->get()->map(fn ($b) => Presenter::banner($b, $categories))->values(),
             'search_suggestions' => $suggestions,
-            'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name_ar' => $c->name_ar, 'name_en' => $c->name_en, 'slug' => $c->slug, 'image' => null])->values(),
+            'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name_ar' => $c->name_ar, 'name_en' => $c->name_en, 'slug' => $c->slug, 'image' => $c->imageUrl()])->values(),
             'suggested_products' => $suggested->map(fn ($p) => Presenter::part($p, $vehicle))->values(),
         ];
     }
