@@ -86,6 +86,7 @@ class CartService
                 'name' => $p->name_ar,
                 'grade' => $p->grade,
                 'side' => $p->side,
+                'group_key' => $p->group_key,
                 'image' => $p->image ? asset('storage/'.$p->image) : null,
                 'unit_price' => $p->price,
                 'qty' => $it->qty,

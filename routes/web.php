@@ -4,6 +4,8 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\BranchController as AdminBranchController;
 use App\Http\Controllers\Admin\CatalogController;
+use App\Http\Controllers\Admin\ContentController;
+use App\Http\Controllers\Admin\ReturnController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\InventoryController;
@@ -110,6 +112,19 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         Route::post('{branch}/default', [AdminBranchController::class, 'makeDefault'])->name('default');
         Route::delete('{branch}', [AdminBranchController::class, 'destroy'])->name('destroy');
     });
+
+    // الصفحات والحسابات البنكية
+    Route::middleware('perm:support.manage')->prefix('content')->name('content.')->group(function () {
+        Route::get('/', [ContentController::class, 'index'])->name('index');
+        Route::put('pages/{page}', [ContentController::class, 'updatePage'])->name('pages.update');
+        Route::post('accounts', [ContentController::class, 'storeAccount'])->name('accounts.store');
+        Route::put('accounts/{account}', [ContentController::class, 'updateAccount'])->name('accounts.update');
+        Route::delete('accounts/{account}', [ContentController::class, 'destroyAccount'])->name('accounts.destroy');
+    });
+
+    // الإرجاع والاستبدال
+    Route::get('returns', [ReturnController::class, 'index'])->middleware('perm:orders.view')->name('returns.index');
+    Route::post('returns/{return}/{to}', [ReturnController::class, 'update'])->middleware('perm:orders.manage')->whereIn('to', ['approve', 'reject', 'complete'])->name('returns.update');
 
     // الأسئلة الشائعة
     Route::middleware('perm:support.manage')->prefix('faqs')->name('faqs.')->group(function () {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Presenter;
 use App\Models\Address;
 use App\Models\Order;
+use App\Models\ReturnRequest;
 use App\Services\CartService;
 use App\Services\OrderService;
 use App\Support\Phone;
@@ -80,7 +81,7 @@ class OrderController extends Controller
 
         return response()->json([
             'order' => Presenter::order($order),
-            'bank_transfer' => $order->payment_method === 'bank' ? ['bank' => '[اسم البنك]', 'account_name' => config('dp.seller_name'), 'iban' => '[رقم الآيبان]', 'amount' => $order->total, 'reference' => $order->number] : null,
+            'bank_transfer' => $order->payment_method === 'bank' ? self::bankTransfer($order) : null,
         ], 201);
     }
 
@@ -112,6 +113,93 @@ class OrderController extends Controller
     public function show(Request $r, string $number)
     {
         return ['order' => Presenter::order($this->findOwned($r, $number))];
+    }
+
+    /** بيانات التحويل البنكي للطلب من الحسابات البنكية المسجّلة في لوحة الإدارة */
+    public static function bankTransfer(Order $o): array
+    {
+        $acc = ContentController::accounts()->first();
+        return [
+            'bank' => $acc['bank_name'] ?? null, 'account_name' => $acc['beneficiary_name'] ?? config('dp.seller_name'),
+            'iban' => $acc['iban'] ?? null, 'account_number' => $acc['account_number'] ?? null,
+            'amount' => $o->total, 'reference' => $o->number, 'accounts' => ContentController::accounts(),
+        ];
+    }
+
+    /**
+     * طلبات الضيف برقم الجوال — بخطوتين لحماية بيانات العملاء:
+     * 1) { phone } → نرسل رمز تحقق للجوال (نفس الاستجابة سواء له طلبات أم لا)
+     * 2) { phone, code } → قائمة طلبات هذا الرقم
+     */
+    public function guestLookup(Request $r, \App\Services\OtpService $otp)
+    {
+        $r->validate(['phone' => 'required|string', 'code' => 'nullable|digits:4']);
+        $phone = Phone::normalize((string) $r->input('phone')) ?? throw ValidationException::withMessages(['phone' => 'برجاء إدخال رقم جوال صحيح (10 أرقام)']);
+
+        if (!$r->filled('code')) {
+            $code = $otp->request($phone, ['purpose' => 'guest_lookup']);
+            return response()->json(['message' => 'أرسلنا رمز التحقق إلى جوالك', 'step' => 'verify', 'resend_after' => config('dp.otp.resend_seconds')]
+                + ($code ? ['debug_code' => $code] : []), 202);
+        }
+        $otp->verify($phone, Phone::latinDigits((string) $r->input('code')));
+        $orders = Order::with('items', 'events', 'branch')->where('customer_phone', $phone)->orderByDesc('placed_at')->limit(50)->get();
+        return ['orders' => $orders->map(fn ($o) => Presenter::order($o, false))->values(), 'count' => $orders->count()];
+    }
+
+    /** طلبات الإرجاع/الاستبدال لطلب (المالك أو الضيف مع phone) */
+    public function returns(Request $r, string $number)
+    {
+        $o = $this->findOwned($r, $number);
+        return [
+            'returns' => ReturnRequest::with('item')->where('order_id', $o->id)->latest('id')->get()->map->toApi()->values(),
+            'eligible' => $this->returnEligibility($o),
+        ];
+    }
+
+    /** POST multipart: order_item_id, action(return|exchange), reason, qty?, image? */
+    public function requestReturn(Request $r, string $number)
+    {
+        $o = $this->findOwned($r, $number);
+        $d = $r->validate([
+            'order_item_id' => 'required|integer',
+            'action' => 'required|in:'.implode(',', array_keys(ReturnRequest::ACTIONS)),
+            'reason' => 'required|string|max:300',
+            'qty' => 'nullable|integer|min:1|max:99',
+            'image' => 'nullable|image|max:5120',
+        ], ['image.image' => 'المرفق يجب أن يكون صورة', 'image.max' => 'حجم الصورة حتى 5 ميجابايت']);
+
+        $eligible = $this->returnEligibility($o);
+        if (!$eligible['allowed']) {
+            throw ValidationException::withMessages(['order' => $eligible['reason']]);
+        }
+        $item = $o->items()->whereKey($d['order_item_id'])->first() ?? throw ValidationException::withMessages(['order_item_id' => 'القطعة ليست ضمن هذا الطلب']);
+        $qty = (int) ($d['qty'] ?? $item->qty);
+        $already = ReturnRequest::where('order_item_id', $item->id)->whereIn('status', ['pending', 'approved', 'completed'])->sum('qty');
+        if ($qty + $already > $item->qty) {
+            throw ValidationException::withMessages(['qty' => $already ? 'يوجد طلب إرجاع سابق لهذه القطعة' : "الكمية المطلوبة أكبر من المشتراة ({$item->qty})"]);
+        }
+
+        $ret = ReturnRequest::create([
+            'order_id' => $o->id, 'order_item_id' => $item->id, 'user_id' => $r->user('sanctum')?->id,
+            'action' => $d['action'], 'qty' => $qty, 'reason' => $d['reason'],
+            'image' => $r->hasFile('image') ? $r->file('image')->store('returns', 'public') : null,
+        ]);
+        $this->orders->event($o, $o->status, 'طلب '.ReturnRequest::ACTIONS[$d['action']].': '.$item->name.' × '.$qty.' — '.$d['reason']);
+        return response()->json(['message' => 'استلمنا طلبك وسنراجعه خلال يومي عمل', 'return' => $ret->refresh()->load('item')->toApi()], 201);
+    }
+
+    /** هل الطلب قابل للإرجاع؟ مكتمل وضمن المهلة */
+    private function returnEligibility(Order $o): array
+    {
+        $days = (int) config('dp.return_days');
+        if ($o->status !== 'completed') {
+            return ['allowed' => false, 'reason' => 'الإرجاع والاستبدال متاحان للطلبات المكتملة فقط', 'until' => null];
+        }
+        $doneAt = $o->events()->where('status', 'completed')->latest('id')->value('created_at') ?? $o->updated_at;
+        $until = \Illuminate\Support\Carbon::parse($doneAt)->addDays($days);
+        return $until->isPast()
+            ? ['allowed' => false, 'reason' => "انتهت مهلة الإرجاع ({$days} يوماً من الاستلام)", 'until' => $until->toIso8601String()]
+            : ['allowed' => true, 'reason' => null, 'until' => $until->toIso8601String()];
     }
 
     /** تتبع طلبك: رقم الطلب + رقم الجوال بدون تسجيل */

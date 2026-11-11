@@ -94,6 +94,10 @@
     {
       "key": "branch_id",
       "value": ""
+    },
+    {
+      "key": "device_id",
+      "value": ""
     }
   ],
   "item": [
@@ -164,6 +168,112 @@
           "type": "noauth"
         }
       }
+    },
+    {
+      "name": "Content & Lookups",
+      "description": "صفحات المحتوى والقيم المعتمدة",
+      "item": [
+        {
+          "name": "Page: terms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pages/terms",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                "terms"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Page: privacy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pages/privacy",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                "privacy"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Page: returns policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pages/returns-policy",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pages",
+                "returns-policy"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Bank accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bank-accounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "bank-accounts"
+              ]
+            },
+            "description": "الحساب الأساسي في الجذر + كل الحسابات في accounts. تُدار من لوحة الإدارة ← الصفحات والبنوك.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Lookups (allowed values)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/lookups",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "lookups"
+              ]
+            },
+            "description": "business_activities, grades, sides, fulfillment, payment_methods, return_actions, return_reasons, order_statuses",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
     },
     {
       "name": "Branches",
@@ -275,15 +385,10 @@
           ]
         },
         {
-          "name": "Register (business)",
+          "name": "Register (business + CR file)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/auth/register",
               "host": [
@@ -294,17 +399,64 @@
                 "register"
               ]
             },
+            "description": "multipart/form-data. activity: workshop | center | shop (يقبل أيضاً service_center و parts_shop و spare_parts). cr_file اختياري: PDF/JPG/PNG حتى 5MB.",
             "auth": {
               "type": "noauth"
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"type\": \"business\",\n  \"phone\": \"0550000001\",\n  \"country_code\": \"966\",\n  \"name\": \"مدير الورشة\",\n  \"city\": \"جدة\",\n  \"email\": \"shop@example.com\",\n  \"terms\": true,\n  \"business_name\": \"ورشة النخبة\",\n  \"activity\": \"workshop\",\n  \"cr_number\": \"1010123456\",\n  \"vat_number\": \"300000000000003\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "type",
+                  "value": "business",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "0550000001",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "مدير الورشة",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "جدة",
+                  "type": "text"
+                },
+                {
+                  "key": "terms",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "business_name",
+                  "value": "ورشة النخبة",
+                  "type": "text"
+                },
+                {
+                  "key": "activity",
+                  "value": "workshop",
+                  "type": "text"
+                },
+                {
+                  "key": "cr_number",
+                  "value": "1010123456",
+                  "type": "text"
+                },
+                {
+                  "key": "vat_number",
+                  "value": "300000000000003",
+                  "type": "text"
+                },
+                {
+                  "key": "cr_file",
+                  "type": "file",
+                  "src": []
                 }
-              }
+              ]
             }
           },
           "event": [
@@ -341,12 +493,13 @@
                 "request"
               ]
             },
+            "description": "type اختياري (individual|business): لو أُرسل ونوع الحساب مختلف يرجع 422 برسالة واضحة.",
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"{{phone}}\",\n  \"country_code\": \"966\"\n}",
+              "raw": "{\n  \"phone\": \"{{phone}}\",\n  \"country_code\": \"966\",\n  \"type\": \"individual\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -468,7 +621,7 @@
       "description": "يتطلب تسجيل الدخول",
       "item": [
         {
-          "name": "Me",
+          "name": "Me (+ stats)",
           "request": {
             "method": "GET",
             "header": [],
@@ -480,7 +633,8 @@
               "path": [
                 "me"
               ]
-            }
+            },
+            "description": "user.created_at, orders_count, cars_count, addresses_count"
           }
         },
         {
@@ -543,6 +697,113 @@
                 "me",
                 "devices"
               ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "const d = (j.devices || []).find(x => !x.current); if (d) pm.collectionVariables.set('device_id', d.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete device session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/me/devices/{{device_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me",
+                "devices",
+                "{{device_id}}"
+              ]
+            },
+            "description": "id من Devices. حذف الجهاز الحالي = تسجيل خروج."
+          }
+        },
+        {
+          "name": "Change phone — request code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/me/phone/change-request",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me",
+                "phone",
+                "change-request"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_phone\": \"0512341234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.debug_code) pm.collectionVariables.set('otp_code', j.debug_code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change phone — verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/me/phone/change-verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me",
+                "phone",
+                "change-verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_phone\": \"0512341234\",\n  \"code\": \"{{otp_code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
@@ -782,7 +1043,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/parts?q=&category=&subcategory=&grade=&in_stock=1&fit_only=1&car_model_id={{car_model_id}}&year=2020&sort=relevance&per_page=20&page=1",
+              "raw": "{{base_url}}/parts?q=&category=&subcategory=&grade=&side=&in_stock=1&fit_only=1&car_model_id={{car_model_id}}&year=2020&sort=relevance&per_page=20&page=1",
               "host": [
                 "{{base_url}}"
               ],
@@ -807,6 +1068,11 @@
                 },
                 {
                   "key": "grade",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "side",
                   "value": "",
                   "disabled": true
                 },
@@ -847,7 +1113,7 @@
                 }
               ]
             },
-            "description": "grade: oem|cert|first — sort: relevance|price_asc|price_desc|newest — per_page ≤ 50"
+            "description": "grade: oem|cert|first — side: R|L — sort: relevance|price_asc|price_desc|newest — per_page ≤ 50"
           },
           "event": [
             {
@@ -1050,6 +1316,58 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"qty\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.token) pm.collectionVariables.set('cart_token', j.token);",
+                  "if (j.items && j.items.length) pm.collectionVariables.set('item_id', j.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch grade / side",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cart/items/:item",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cart",
+                "items",
+                ":item"
+              ],
+              "variable": [
+                {
+                  "key": "item",
+                  "value": "{{item_id}}"
+                }
+              ]
+            },
+            "description": "يبدّل لبديل من نفس القطعة (group_key). grade و side اختياريان. 422 لو البديل غير موجود أو غير متوفر في الفرع.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qty\": 1,\n  \"grade\": \"cert\",\n  \"side\": \"L\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1322,6 +1640,87 @@
           }
         },
         {
+          "name": "Guest orders — 1. send code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/guest-lookup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "guest-lookup"
+              ]
+            },
+            "description": "خطوتان لحماية بيانات العملاء: يرسل رمز تحقق للجوال (202).",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                  "if (j.debug_code) pm.collectionVariables.set('otp_code', j.debug_code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guest orders — 2. list with code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/guest-lookup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "guest-lookup"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{phone}}\",\n  \"code\": \"{{otp_code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "Order details",
           "request": {
             "method": "GET",
@@ -1469,6 +1868,86 @@
                   "key": "phone",
                   "value": "{{phone}}",
                   "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Returns of order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/{{number}}/returns?phone={{phone}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{number}}",
+                "returns"
+              ],
+              "query": [
+                {
+                  "key": "phone",
+                  "value": "{{phone}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "returns + eligible { allowed, reason, until }"
+          }
+        },
+        {
+          "name": "Request return / exchange",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/{{number}}/returns",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "orders",
+                "{{number}}",
+                "returns"
+              ]
+            },
+            "description": "للطلبات المكتملة خلال مهلة الإرجاع. action: return | exchange. qty اختياري (الافتراضي كامل الكمية).",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "order_item_id",
+                  "value": "",
+                  "type": "text"
+                },
+                {
+                  "key": "action",
+                  "value": "return",
+                  "type": "text"
+                },
+                {
+                  "key": "reason",
+                  "value": "القطعة غير مطابقة",
+                  "type": "text"
+                },
+                {
+                  "key": "qty",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "phone",
+                  "value": "{{phone}}",
+                  "type": "text"
                 }
               ]
             }

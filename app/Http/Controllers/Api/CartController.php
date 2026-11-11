@@ -31,15 +31,53 @@ class CartController extends Controller
         return response()->json($this->carts->summary($cart), 201);
     }
 
+    /**
+     * تعديل سطر السلة: الكمية و/أو التبديل لبديل من نفس القطعة (نفس group_key) بدرجة أو جانب مختلف.
+     * PATCH { qty?, grade?: oem|cert|first, side?: R|L }
+     */
     public function update(Request $r, int $item)
     {
-        $d = $r->validate(['qty' => 'required|integer|min:1|max:99']);
-        $cart = $this->carts->resolve($r, false);
-        $row = $cart?->items()->with('part.inventory')->findOrFail($item);
-        if ($row->part->available < $d['qty']) {
-            throw ValidationException::withMessages(['qty' => "المتاح {$row->part->available} فقط"]);
+        if (isset(\App\Http\Presenter::GRADE_ALIASES[$r->input('grade')])) {
+            $r->merge(['grade' => \App\Http\Presenter::GRADE_ALIASES[$r->input('grade')]]);
         }
-        $row->update(['qty' => $d['qty']]);
+        $d = $r->validate([
+            'qty' => 'required_without_all:grade,side|integer|min:1|max:99',
+            'grade' => 'nullable|in:'.implode(',', array_keys(\App\Http\Presenter::GRADES)),
+            'side' => 'nullable|in:R,L',
+        ]);
+        $cart = $this->carts->resolve($r, false);
+        abort_unless($cart, 404);
+        $row = $cart->items()->with('part.inventory')->findOrFail($item);
+        $part = $row->part;
+        $qty = (int) ($d['qty'] ?? $row->qty);
+
+        $grade = $d['grade'] ?? $part->grade;
+        $side = array_key_exists('side', $d) && $d['side'] !== null ? $d['side'] : $part->side;
+        if ($grade !== $part->grade || $side !== $part->side) {
+            $target = $part->group_key ? Part::with('inventory')->where('group_key', $part->group_key)->where('active', true)
+                ->where('grade', $grade)->where(fn ($q) => $side ? $q->where('side', $side) : $q->whereNull('side'))->first() : null;
+            if (!$target) {
+                throw ValidationException::withMessages(['grade' => 'هذا البديل غير متوفر لهذه القطعة']);
+            }
+            // لو البديل موجود أصلاً في السلة ندمج الكمية
+            $existing = $cart->items()->where('part_id', $target->id)->where('id', '!=', $row->id)->first();
+            $total = $qty + ($existing?->qty ?? 0);
+            if ($target->available < $total) {
+                throw ValidationException::withMessages(['qty' => $target->available > 0 ? "المتاح من البديل {$target->available} فقط" : 'البديل غير متوفر حالياً في هذا الفرع']);
+            }
+            if ($existing) {
+                $existing->update(['qty' => min(99, $total)]);
+                $row->delete();
+            } else {
+                $row->update(['part_id' => $target->id, 'qty' => $qty]);
+            }
+            return $this->carts->summary($cart);
+        }
+
+        if ($part->available < $qty) {
+            throw ValidationException::withMessages(['qty' => "المتاح {$part->available} فقط"]);
+        }
+        $row->update(['qty' => $qty]);
         return $this->carts->summary($cart);
     }
 

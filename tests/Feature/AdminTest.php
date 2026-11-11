@@ -43,6 +43,8 @@ class AdminTest extends TestCase
         $s = User::where('email', 'orders@store.example')->first();
         $o = Order::where('status', 'pending_transfer')->first();
         $this->assertNotNull($o);
+        $this->actingAs($s)->post("/admin/orders/{$o->id}/approve")->assertSessionHasErrors('order');   // بدون إيصال يُرفض الاعتماد
+        $o->update(['receipt_path' => 'receipts/test.png']);
         $this->actingAs($s)->post("/admin/orders/{$o->id}/approve")->assertRedirect();
         $this->assertSame('paid', $o->fresh()->payment_status);
     }

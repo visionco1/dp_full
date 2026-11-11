@@ -45,7 +45,11 @@ class Presenter
         }
         return $row;
     }
-    public const PAYMENT_LABELS = ['cod' => 'الدفع عند الاستلام', 'bank' => 'تحويل بنكي مباشر', 'cash' => 'نقداً', 'card' => 'بطاقة'];
+    /** أنشطة المنشآت + أسماء بديلة يقبلها التسجيل */
+    public const ACTIVITIES = ['workshop' => 'ورشة صيانة', 'center' => 'مركز صيانة', 'shop' => 'محل قطع غيار'];
+    public const ACTIVITY_ALIASES = ['service_center' => 'center', 'maintenance_center' => 'center', 'parts_shop' => 'shop', 'spare_parts' => 'shop'];
+
+    public const PAYMENT_LABELS =['cod' => 'الدفع عند الاستلام', 'bank' => 'تحويل بنكي مباشر', 'cash' => 'نقداً', 'card' => 'بطاقة'];
 
     /**
      * بانر للتطبيق. action_type يُستنتج من الرابط:
@@ -118,18 +122,27 @@ class Presenter
         return $row;
     }
 
-    public static function user(User $u): array
+    public static function user(User $u, bool $withStats = false): array
     {
-        return [
+        $row = [
             'id' => $u->id, 'name' => $u->name, 'phone' => $u->phone, 'email' => $u->email,
             'type' => $u->type, 'city' => $u->city,
             'business' => $u->type === 'business' ? [
                 'name' => $u->business_name, 'activity' => $u->activity, 'cr_number' => $u->cr_number,
-                'vat_number' => $u->vat_number, 'status' => $u->business_status,
+                'vat_number' => $u->vat_number, 'status' => $u->business_status, 'cr_document_uploaded' => (bool) $u->cr_document,
             ] : null,
             'locale' => $u->locale, 'theme' => $u->theme, 'notifications' => $u->prefs(),
             'phone_verified' => (bool) $u->phone_verified_at,
+            'created_at' => $u->created_at?->toIso8601String(),
         ];
+        if ($withStats) {
+            $row += [
+                'orders_count' => $u->orders()->count(),
+                'cars_count' => $u->vehicles()->count(),
+                'addresses_count' => $u->addresses()->count(),
+            ];
+        }
+        return $row;
     }
 
     public static function vehicle(Vehicle $v): array

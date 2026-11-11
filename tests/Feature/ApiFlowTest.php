@@ -20,10 +20,10 @@ class ApiFlowTest extends TestCase
         $this->seed(DatabaseSeeder::class);
     }
 
-    private function login(string $phone = '512345678'): string
+    private function login(string $phone = '512345699'): string
     {
-        $this->postJson('/api/v1/auth/register', ['type' => 'individual', 'name' => 'اختبار', 'city' => 'الرياض', 'phone' => $phone, 'country' => 'SA'])->assertSuccessful();
-        $code = $this->postJson('/api/v1/auth/otp/request', ['phone' => $phone, 'country' => 'SA'])->json('debug_code');
+        // التسجيل يرسل الرمز مباشرة (طلب رمز ثانٍ فوراً يُرفض بمهلة إعادة الإرسال)
+        $code = $this->postJson('/api/v1/auth/register', ['type' => 'individual', 'name' => 'اختبار', 'city' => 'الرياض', 'phone' => $phone, 'country' => 'SA', 'terms' => true])->assertSuccessful()->json('debug_code');
         $this->assertNotEmpty($code);
         return $this->postJson('/api/v1/auth/otp/verify', ['phone' => $phone, 'country' => 'SA', 'code' => $code])->assertOk()->json('token');
     }

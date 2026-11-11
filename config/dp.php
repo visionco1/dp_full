@@ -6,6 +6,7 @@ return [
     'currency' => 'SAR',
     'seller_vat_number' => env('DP_SELLER_VAT', '[الرقم الضريبي]'),
     'seller_name' => 'دفع المحركات — Engine Power & More',
+    'return_days' => (int) env('DP_RETURN_DAYS', 14),   // مهلة طلب الإرجاع/الاستبدال بعد اكتمال الطلب
     'seller_cr_number' => env('DP_SELLER_CR', '[رقم السجل التجاري]'),
 
     // اقتراحات البحث في الصفحة الرئيسية للتطبيق (تُكمَّل تلقائياً بالأكثر طلباً)
@@ -60,7 +61,7 @@ return [
         'inventory.import' => 'استيراد Excel/CSV',
         'catalog.manage' => 'إدارة القطع والتوافق',
         'banners.manage' => 'إدارة البانرات والإعلانات',
-        'support.manage' => 'إدارة الأسئلة الشائعة',
+        'support.manage' => 'إدارة الأسئلة الشائعة والصفحات والحسابات البنكية',
         'branches.manage' => 'إدارة الفروع وتحويل المخزون بينها',
         'orders.view' => 'عرض الطلبات',
         'orders.manage' => 'تغيير حالة الطلب والإلغاء',

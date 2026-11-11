@@ -29,6 +29,9 @@ class AuthController extends Controller
     /** تسجيل حساب جديد: يحفظ البيانات مؤقتاً ويرسل رمز التحقق. الحساب لا يُنشأ إلا بعد التحقق */
     public function register(Request $r)
     {
+        if (isset(Presenter::ACTIVITY_ALIASES[$r->input('activity')])) {   // service_center → center ...
+            $r->merge(['activity' => Presenter::ACTIVITY_ALIASES[$r->input('activity')]]);
+        }
         $r->validate([
             'type' => 'required|in:individual,business',
             'name' => 'required|string|max:80',
@@ -36,29 +39,42 @@ class AuthController extends Controller
             'email' => 'nullable|email|max:120',
             'terms' => 'accepted',
             'business_name' => 'required_if:type,business|nullable|string|max:120',
-            'activity' => 'nullable|in:workshop,center,shop',
+            'activity' => 'nullable|in:'.implode(',', array_keys(Presenter::ACTIVITIES)),
+            // مستند السجل التجاري (اختياري) — multipart/form-data
+            'cr_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'cr_number' => ['required_if:type,business', 'nullable', 'regex:/^\d{10}$/'],
             'vat_number' => ['required_if:type,business', 'nullable', 'regex:/^3\d{13}3$/'],
         ], [
             'cr_number.regex' => 'رقم السجل التجاري 10 أرقام',
             'vat_number.regex' => 'الرقم الضريبي 15 رقماً يبدأ وينتهي بالرقم 3',
+            'activity.in' => 'نوع النشاط: workshop أو center أو shop',
+            'cr_file.mimes' => 'مستند السجل التجاري PDF أو صورة', 'cr_file.max' => 'حجم المستند حتى 5 ميجابايت',
         ]);
         $phone = $this->phoneOrFail($r);
         if (User::where('phone', $phone)->exists()) {
             throw ValidationException::withMessages(['phone' => 'هذا الرقم لديه حساب — سجّل الدخول']);
         }
-        $payload = $r->only(['type', 'name', 'city', 'email', 'business_name', 'activity', 'cr_number', 'vat_number']);
+        $payload = $r->only(['type', 'name', 'city', 'email', 'business_name', 'activity', 'cr_number', 'vat_number']) + ['purpose' => 'register'];
+        if ($r->hasFile('cr_file') && $r->input('type') === 'business') {   // تخزين خاص (غير عام) حتى يراجعه الفريق
+            $payload['cr_document'] = $r->file('cr_file')->store('cr-documents', 'local');
+        }
         $code = $this->otp->request($phone, $payload);
         return response()->json(['message' => 'أرسلنا رمز التحقق', 'resend_after' => config('dp.otp.resend_seconds')] + ($code ? ['debug_code' => $code] : []));
     }
 
     public function requestOtp(Request $r)
     {
-        $r->validate(['phone' => 'required']);
+        $r->validate(['phone' => 'required', 'type' => 'nullable|in:individual,business']);
         $phone = $this->phoneOrFail($r);
         $user = User::where('phone', $phone)->first();
         if ($user && ($user->is_staff || !$user->active)) {
             throw ValidationException::withMessages(['phone' => 'لا يمكن تسجيل الدخول بهذا الرقم']);
+        }
+        // type اختياري: لو أرسله التطبيق ونوع الحساب مختلف نرفض مبكراً برسالة واضحة
+        if ($user && $r->filled('type') && $user->type !== $r->input('type')) {
+            throw ValidationException::withMessages(['type' => $user->type === 'business'
+                ? 'هذا الرقم مسجّل كحساب منشأة — اختر تسجيل دخول المنشآت'
+                : 'هذا الرقم مسجّل كحساب أفراد — اختر تسجيل دخول الأفراد']);
         }
         $code = $this->otp->request($phone);   // نفس الاستجابة سواء كان الحساب موجوداً أم لا
         return response()->json(['message' => 'أرسلنا رمز التحقق', 'resend_after' => config('dp.otp.resend_seconds')] + ($code ? ['debug_code' => $code] : []));
@@ -72,7 +88,7 @@ class AuthController extends Controller
 
         $user = User::where('phone', $phone)->first();
         if (!$user) {
-            if (!$payload) {
+            if (($payload['purpose'] ?? 'register') !== 'register' || empty($payload['type'])) {
                 throw ValidationException::withMessages(['phone' => 'لا يوجد حساب بهذا الرقم — أنشئ حساباً جديداً']);
             }
             $user = User::create([
@@ -80,7 +96,8 @@ class AuthController extends Controller
                 'type' => $payload['type'], 'business_name' => $payload['business_name'] ?? null, 'activity' => $payload['activity'] ?? null,
                 'cr_number' => $payload['cr_number'] ?? null, 'vat_number' => $payload['vat_number'] ?? null,
                 'business_status' => $payload['type'] === 'business' ? 'pending' : null,
-            ]);
+                'cr_document' => $payload['cr_document'] ?? null,
+            ])->refresh();   // تحميل القيم الافتراضية من قاعدة البيانات (active...) قبل التحقق أدناه
         }
         if ($user->is_staff || !$user->active) {
             throw ValidationException::withMessages(['phone' => 'لا يمكن تسجيل الدخول بهذا الرقم']);
@@ -97,7 +114,7 @@ class AuthController extends Controller
 
     public function me(Request $r)
     {
-        return ['user' => Presenter::user($r->user())];
+        return ['user' => Presenter::user($r->user(), true)];
     }
 
     public function update(Request $r)
@@ -127,6 +144,51 @@ class AuthController extends Controller
     {
         $cur = $r->user()->currentAccessToken()->id;
         return ['devices' => $r->user()->tokens->map(fn ($t) => ['id' => $t->id, 'name' => $t->name, 'last_used_at' => $t->last_used_at?->toIso8601String(), 'current' => $t->id === $cur])->values()];
+    }
+
+    /** إنهاء جلسة جهاز محدد (id من GET /me/devices). حذف الجهاز الحالي = تسجيل خروج */
+    public function deleteDevice(Request $r, int $device)
+    {
+        $token = $r->user()->tokens()->whereKey($device)->firstOrFail();
+        $current = $token->id === $r->user()->currentAccessToken()->id;
+        $token->delete();
+        return response()->json(['message' => $current ? 'تم تسجيل الخروج من هذا الجهاز' : 'تم إنهاء جلسة الجهاز', 'current' => $current]);
+    }
+
+    /** تغيير الجوال — الخطوة 1: رمز تحقق للرقم الجديد */
+    public function phoneChangeRequest(Request $r)
+    {
+        $r->validate(['new_phone' => 'required']);
+        $new = $this->normalizeOrFail((string) $r->input('new_phone'), 'new_phone', (string) $r->input('country_code', '966'));
+        if ($new === $r->user()->phone) {
+            throw ValidationException::withMessages(['new_phone' => 'هذا هو رقمك الحالي']);
+        }
+        if (User::where('phone', $new)->exists()) {
+            throw ValidationException::withMessages(['new_phone' => 'هذا الرقم مستخدم في حساب آخر']);
+        }
+        $code = $this->otp->request($new, ['purpose' => 'change_phone', 'user_id' => $r->user()->id]);
+        return response()->json(['message' => 'أرسلنا رمز التحقق إلى الرقم الجديد', 'resend_after' => config('dp.otp.resend_seconds')] + ($code ? ['debug_code' => $code] : []));
+    }
+
+    /** تغيير الجوال — الخطوة 2: تأكيد الرمز وتحديث الرقم */
+    public function phoneChangeVerify(Request $r)
+    {
+        $r->validate(['new_phone' => 'required', 'code' => 'required|digits:4']);
+        $new = $this->normalizeOrFail((string) $r->input('new_phone'), 'new_phone', (string) $r->input('country_code', '966'));
+        $payload = $this->otp->verify($new, Phone::latinDigits((string) $r->input('code')));
+        if (($payload['purpose'] ?? null) !== 'change_phone' || (int) ($payload['user_id'] ?? 0) !== $r->user()->id) {
+            throw ValidationException::withMessages(['code' => 'الرمز غير صالح لهذا الطلب — اطلب رمزاً جديداً']);
+        }
+        if (User::where('phone', $new)->exists()) {
+            throw ValidationException::withMessages(['new_phone' => 'هذا الرقم مستخدم في حساب آخر']);
+        }
+        $r->user()->forceFill(['phone' => $new, 'phone_verified_at' => now()])->save();
+        return ['message' => 'تم تغيير رقم الجوال', 'user' => Presenter::user($r->user()->fresh(), true)];
+    }
+
+    private function normalizeOrFail(string $raw, string $field, string $cc = '966'): string
+    {
+        return Phone::normalize(Phone::latinDigits($raw), $cc) ?? throw ValidationException::withMessages([$field => 'برجاء إدخال رقم جوال صحيح (10 أرقام)']);
     }
 
     /** طلب حذف الحساب: يُسجَّل الطلب وتُنفَّذ المراجعة من الإدارة. الطلبات الجارية لا تتأثر */

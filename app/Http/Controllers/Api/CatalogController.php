@@ -88,7 +88,7 @@ class CatalogController extends Controller
             $r->merge(['grade' => Presenter::GRADE_ALIASES[$r->input('grade')]]);
         }
         $r->validate(['per_page' => 'nullable|integer|min:1|max:50', 'grade' => 'nullable|in:'.implode(',', array_keys(Presenter::GRADES)),
-            'sort' => 'nullable|in:relevance,price_asc,price_desc,newest']);
+            'sort' => 'nullable|in:relevance,price_asc,price_desc,newest', 'side' => 'nullable|in:R,L,r,l']);
         $vehicle = $this->vehicleFor($r);
 
         // category = قسم رئيسي (يشمل فروعه) أو فرعي — id أو slug. subcategory يضيّق داخله
@@ -96,6 +96,9 @@ class CatalogController extends Controller
             ->inCategory($r->input('subcategory') ?: $r->input('category'));
         if ($r->filled('grade')) {
             $q->where('grade', $r->input('grade'));
+        }
+        if ($r->filled('side')) {   // R يمين / L يسار
+            $q->where('side', strtoupper($r->input('side')));
         }
         if ($r->boolean('in_stock')) {
             $q->whereHas('inventory', fn ($w) => $w->whereRaw('on_hand - reserved > 0'));
