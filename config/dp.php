@@ -70,5 +70,6 @@ return [
         'reports.export' => 'تصدير التقارير',
         'reports.customers' => 'عرض أرقام العملاء كاملة',
         'roles.manage' => 'إدارة الموظفين والصلاحيات',
+        'telescope.view' => 'مراقبة النظام (Telescope): الطلبات والأخطاء والاستعلامات',
     ],
 ];

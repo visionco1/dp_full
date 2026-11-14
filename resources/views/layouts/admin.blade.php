@@ -80,6 +80,10 @@ tailwind.config = { theme: { extend: {
         @endcan
       @endforeach
     </nav>
+    @if (config('telescope.enabled') && $u->hasPermission('telescope.view'))
+      <div class="px-3 pb-2"><a href="{{ url(config('telescope.path')) }}" target="_blank" class="flex items-center gap-3 min-h-[44px] px-3 rounded-xl text-sm text-white/80 hover:bg-white/10">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6M11 8v6"/></svg>مراقبة النظام ↗</a></div>
+    @endif
     <div class="hidden lg:block p-4 mt-4 border-t border-white/10 text-sm">
       <div class="font-semibold">{{ $u->name }}</div>
       <div class="text-white/60 text-xs">{{ $u->role?->name }}</div>
